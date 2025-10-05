@@ -54,7 +54,6 @@ const Index = () => {
 
   const handleIntroComplete = () => {
     setShowIntro(false);
-    if (!user) setShowAuthModal(true);
   };
 
   const handleCTAClick = () => {

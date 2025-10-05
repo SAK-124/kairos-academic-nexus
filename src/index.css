@@ -233,6 +233,15 @@ All colors MUST be HSL.
     transform: translate(120px, 80px) scale(1.1);
   }
 }
+
+@keyframes scroll {
+  0% {
+    transform: translateX(0);
+  }
+  100% {
+    transform: translateX(-33.333%);
+  }
+}
   
   .animate-pulsate {
     animation: pulsate 3s ease-in-out infinite;
@@ -244,6 +253,10 @@ All colors MUST be HSL.
   
   .animate-shimmer {
     animation: shimmer 3s linear infinite;
+  }
+
+  .animate-scroll {
+    animation: scroll 30s linear infinite;
   }
 
   .gradient-orb {

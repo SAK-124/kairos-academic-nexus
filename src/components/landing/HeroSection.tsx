@@ -68,11 +68,8 @@ export const HeroSection = ({ onCTAClick }: HeroSectionProps) => {
   };
 
   const handleCTAClick = () => {
-    if (buttonMapping.enabled && buttonMapping.route) {
-      navigate(buttonMapping.route);
-    } else {
-      onCTAClick();
-    }
+    // Always navigate to scheduler when button is clicked
+    navigate("/scheduler");
   };
 
   return (

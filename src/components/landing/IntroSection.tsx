@@ -37,10 +37,13 @@ export const IntroSection = ({ onComplete }: IntroSectionProps) => {
       className={`fixed inset-0 z-50 flex items-center justify-center transition-all duration-600 ${
         isVisible ? "opacity-100" : "opacity-0 pointer-events-none"
       }`}
-      style={{
-        background: "linear-gradient(135deg, hsl(262 83% 58%), hsl(340 82% 62%))",
-      }}
     >
+      {/* Animated gradient orbs background - matching main page */}
+      <div className="fixed inset-0 -z-10">
+        <div className="gradient-orb gradient-orb-1"></div>
+        <div className="gradient-orb gradient-orb-2"></div>
+        <div className="gradient-orb gradient-orb-3"></div>
+      </div>
       <div
         className={`text-center space-y-6 ${
           phase === "enter"
@@ -50,16 +53,7 @@ export const IntroSection = ({ onComplete }: IntroSectionProps) => {
             : "animate-dissolve"
         }`}
       >
-        <h1
-          className="text-8xl font-bold text-white tracking-tight animate-shimmer"
-          style={{
-            backgroundImage: "linear-gradient(90deg, #fff 0%, #ffd700 50%, #fff 100%)",
-            backgroundSize: "200% auto",
-            backgroundClip: "text",
-            WebkitBackgroundClip: "text",
-            WebkitTextFillColor: "transparent",
-          }}
-        >
+        <h1 className="text-8xl font-bold bg-gradient-to-r from-primary via-accent to-primary bg-clip-text text-transparent text-glow">
           Kairos
         </h1>
         <p className="text-white/90 text-xl font-medium animate-fade-in">

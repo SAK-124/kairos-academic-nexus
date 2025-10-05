@@ -129,8 +129,8 @@ export const AuthModal = ({ open, onOpenChange, onSuccess, onClose }: AuthModalP
           title: "Welcome to Kairos!",
           description: "You've successfully signed in",
         });
-        if (onOpenChange) onOpenChange(false);
-        if (onSuccess) onSuccess();
+        onSuccess?.();
+        onClose?.();
       }
     } catch (error) {
       toast({

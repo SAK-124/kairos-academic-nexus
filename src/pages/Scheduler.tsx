@@ -1,14 +1,19 @@
 import { Button } from "@/components/ui/button";
-import { ArrowLeft, Calendar, Brain, CheckCircle, Sparkles } from "lucide-react";
+import { Input } from "@/components/ui/input";
+import { ArrowLeft, Calendar, Brain, CheckCircle, Sparkles, Mail } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { Navigation } from "@/components/Navigation";
 import { useState, useEffect } from "react";
 import { supabase } from "@/integrations/supabase/client";
+import { useToast } from "@/hooks/use-toast";
 
 const Scheduler = () => {
   const navigate = useNavigate();
+  const { toast } = useToast();
   const [user, setUser] = useState<any>(null);
   const [isAdmin, setIsAdmin] = useState(false);
+  const [email, setEmail] = useState("");
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   useEffect(() => {
     checkUser();
@@ -37,6 +42,52 @@ const Scheduler = () => {
       .eq("role", "admin")
       .maybeSingle();
     setIsAdmin(!!data);
+  };
+
+  const handleEarlyBirdSignup = async (e: React.FormEvent) => {
+    e.preventDefault();
+    
+    if (!email || !email.includes("@")) {
+      toast({
+        title: "Invalid email",
+        description: "Please enter a valid email address.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    setIsSubmitting(true);
+
+    try {
+      const { error } = await supabase
+        .from("early_access_signups")
+        .insert([{ email }]);
+
+      if (error) {
+        if (error.code === "23505") {
+          toast({
+            title: "Already registered!",
+            description: "This email is already on our waitlist.",
+          });
+        } else {
+          throw error;
+        }
+      } else {
+        toast({
+          title: "Success! 🎉",
+          description: "You're on the waitlist! We'll notify you when we launch.",
+        });
+        setEmail("");
+      }
+    } catch (error: any) {
+      toast({
+        title: "Error",
+        description: "Something went wrong. Please try again.",
+        variant: "destructive",
+      });
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   return (
@@ -149,14 +200,44 @@ const Scheduler = () => {
             ))}
           </div>
 
-          <Button
-            size="lg"
-            className="mt-12 px-10 py-7 text-lg rounded-full bg-gradient-to-r from-primary to-accent hover:scale-105 transition-all duration-300 shadow-lg hover:shadow-xl hover:shadow-primary/30"
-            onClick={() => navigate("/")}
-          >
-            <Sparkles className="mr-2 w-5 h-5" />
-            Notify Me When Ready
-          </Button>
+          {/* Early Bird Signup Form */}
+          <div className="mt-16 max-w-md mx-auto">
+            <div className="p-8 rounded-2xl bg-background/60 backdrop-blur-xl border border-primary/20 shadow-2xl">
+              <div className="text-center mb-6">
+                <Mail className="w-12 h-12 mx-auto mb-4 text-primary" />
+                <h3 className="text-2xl font-bold mb-2">Join the Waitlist</h3>
+                <p className="text-muted-foreground">
+                  Be the first to know when we launch. Get early access and exclusive features.
+                </p>
+              </div>
+              
+              <form onSubmit={handleEarlyBirdSignup} className="space-y-4">
+                <Input
+                  type="email"
+                  placeholder="Enter your email"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  className="bg-background/50 backdrop-blur-sm border-primary/20"
+                  required
+                />
+                <Button
+                  type="submit"
+                  size="lg"
+                  className="w-full bg-gradient-to-r from-primary to-accent hover:scale-105 transition-all duration-300"
+                  disabled={isSubmitting}
+                >
+                  {isSubmitting ? (
+                    "Joining..."
+                  ) : (
+                    <>
+                      <Sparkles className="mr-2 w-5 h-5" />
+                      Join Waitlist
+                    </>
+                  )}
+                </Button>
+              </form>
+            </div>
+          </div>
         </div>
       </div>
     </div>

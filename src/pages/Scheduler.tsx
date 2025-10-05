@@ -1,157 +1,166 @@
-import { Calendar, Clock, FileText, Users, Sparkles } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { ArrowLeft, Calendar, Brain, CheckCircle, Sparkles } from "lucide-react";
 import { useNavigate } from "react-router-dom";
+import { Navigation } from "@/components/Navigation";
+import { useState, useEffect } from "react";
+import { supabase } from "@/integrations/supabase/client";
 
-export default function Scheduler() {
+const Scheduler = () => {
   const navigate = useNavigate();
+  const [user, setUser] = useState<any>(null);
+  const [isAdmin, setIsAdmin] = useState(false);
+
+  useEffect(() => {
+    checkUser();
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+      setUser(session?.user ?? null);
+      checkAdminStatus(session?.user);
+    });
+    return () => subscription.unsubscribe();
+  }, []);
+
+  const checkUser = async () => {
+    const { data: { session } } = await supabase.auth.getSession();
+    setUser(session?.user ?? null);
+    checkAdminStatus(session?.user);
+  };
+
+  const checkAdminStatus = async (currentUser: any) => {
+    if (!currentUser) {
+      setIsAdmin(false);
+      return;
+    }
+    const { data } = await supabase
+      .from("user_roles")
+      .select("role")
+      .eq("user_id", currentUser.id)
+      .eq("role", "admin")
+      .maybeSingle();
+    setIsAdmin(!!data);
+  };
 
   return (
-    <div className="min-h-screen bg-background relative overflow-hidden">
-      {/* Pulsating Background */}
+    <div className="min-h-screen relative overflow-hidden">
+      {/* Animated gradient orbs background */}
       <div className="fixed inset-0 -z-10">
-        <div
-          className="absolute inset-0 animate-pulsate"
-          style={{ background: "var(--gradient-pulsating)" }}
-        />
+        <div className="gradient-orb gradient-orb-1"></div>
+        <div className="gradient-orb gradient-orb-2"></div>
+        <div className="gradient-orb gradient-orb-3"></div>
       </div>
 
-      <div className="container mx-auto px-4 py-16 relative z-10">
+      <Navigation 
+        user={user}
+        isAdmin={isAdmin}
+        onAdminClick={() => {}}
+        onLoginClick={() => navigate("/")}
+      />
+
+      {/* Content */}
+      <div className="relative z-10 container mx-auto px-6 pt-24 pb-12">
         <Button
           variant="ghost"
+          className="mb-8 backdrop-blur-sm bg-background/30"
           onClick={() => navigate("/")}
-          className="mb-8"
         >
-          ← Back to Home
+          <ArrowLeft className="mr-2 h-4 w-4" />
+          Back to Home
         </Button>
 
-        <div className="max-w-5xl mx-auto">
-          {/* Header */}
-          <div className="text-center mb-16 animate-fade-in">
-            <div className="inline-flex items-center gap-2 px-4 py-2 bg-primary/10 rounded-full mb-6">
-              <Sparkles className="w-4 h-4 text-primary" />
-              <span className="text-sm font-medium">Coming Soon</span>
-            </div>
-            <h1 className="text-5xl md:text-7xl font-bold mb-6 bg-gradient-to-r from-primary via-accent to-secondary bg-clip-text text-transparent">
+        <div className="max-w-5xl mx-auto text-center space-y-12 animate-fade-in">
+          <div className="inline-block">
+            <h1 className="text-6xl md:text-8xl font-bold bg-gradient-to-r from-primary via-accent to-primary bg-clip-text text-transparent animate-shimmer mb-6 text-glow">
               AI Course Scheduler
             </h1>
-            <p className="text-xl text-muted-foreground max-w-2xl mx-auto">
-              We're putting the finishing touches on your intelligent course planning companion
-            </p>
+            <div className="h-1 w-full bg-gradient-to-r from-transparent via-primary to-transparent opacity-50 animate-pulse"></div>
           </div>
 
-          {/* Blurred Preview */}
-          <div className="relative">
-            <div className="absolute inset-0 bg-background/80 backdrop-blur-md z-10 rounded-2xl flex items-center justify-center">
-              <div className="text-center space-y-4 p-8">
-                <div className="w-16 h-16 rounded-full bg-primary/20 flex items-center justify-center mx-auto mb-4 animate-float">
-                  <Calendar className="w-8 h-8 text-primary" />
-                </div>
-                <h3 className="text-2xl font-bold">Almost Ready!</h3>
-                <p className="text-muted-foreground max-w-md">
-                  Our AI is learning the final optimization algorithms to give you the perfect schedule
-                </p>
-                <Button size="lg" className="mt-4" onClick={() => navigate("/")}>
-                  Notify Me When Ready
-                </Button>
+          <div className="inline-flex items-center gap-2 px-6 py-3 rounded-full bg-primary/10 backdrop-blur-sm border border-primary/20">
+            <Sparkles className="w-5 h-5 text-primary animate-pulse" />
+            <p className="text-lg font-medium text-primary">Under Construction</p>
+          </div>
+
+          <p className="text-xl md:text-2xl text-muted-foreground max-w-2xl mx-auto leading-relaxed">
+            Revolutionary AI-powered scheduling coming soon. Get ready for the future of academic planning.
+          </p>
+
+          {/* Enhanced Blurred Preview */}
+          <div className="relative rounded-3xl overflow-hidden bg-background/40 backdrop-blur-2xl border border-white/20 p-12 shadow-2xl">
+            <div className="absolute inset-0 bg-gradient-to-br from-primary/20 via-accent/10 to-secondary/20 backdrop-blur-[100px]"></div>
+            
+            {/* Shimmer overlay */}
+            <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/5 to-transparent animate-shimmer"></div>
+
+            <div className="relative space-y-8 blur-[8px] select-none pointer-events-none">
+              {/* Mock scheduler interface with better visual hierarchy */}
+              <div className="flex gap-4 items-center">
+                <div className="flex-1 h-14 bg-white/20 rounded-xl backdrop-blur-sm border border-white/10"></div>
+                <div className="w-40 h-14 bg-gradient-to-r from-primary/40 to-accent/40 rounded-xl animate-pulse"></div>
               </div>
-            </div>
-
-            {/* Mockup Interface */}
-            <div className="bg-card border rounded-2xl p-8 space-y-6">
-              {/* Top Bar */}
-              <div className="flex items-center justify-between pb-4 border-b">
-                <div className="flex items-center gap-4">
-                  <div className="w-32 h-8 bg-primary/20 rounded animate-shimmer" />
-                  <div className="w-24 h-8 bg-muted rounded animate-shimmer" />
-                </div>
-                <div className="w-40 h-10 bg-primary/30 rounded animate-shimmer" />
-              </div>
-
-              {/* Main Content Grid */}
-              <div className="grid md:grid-cols-3 gap-6">
-                {/* Sidebar */}
-                <div className="space-y-4">
-                  <div className="bg-muted/50 rounded-lg p-4 space-y-3">
-                    <div className="flex items-center gap-2 mb-4">
-                      <FileText className="w-5 h-5 text-primary" />
-                      <div className="w-24 h-4 bg-muted rounded" />
-                    </div>
-                    {[1, 2, 3, 4].map((i) => (
-                      <div key={i} className="h-12 bg-background/50 rounded" />
-                    ))}
-                  </div>
-                </div>
-
-                {/* Schedule Grid */}
-                <div className="md:col-span-2 space-y-4">
-                  <div className="flex gap-2 mb-4">
-                    {["Mon", "Tue", "Wed", "Thu", "Fri"].map((day) => (
-                      <div key={day} className="flex-1 text-center py-2 bg-muted/30 rounded font-medium">
-                        {day}
-                      </div>
-                    ))}
-                  </div>
-                  <div className="grid grid-cols-5 gap-2">
-                    {Array.from({ length: 35 }).map((_, i) => (
-                      <div
-                        key={i}
-                        className={`h-16 rounded ${
-                          i % 7 === 0 || i % 11 === 0
-                            ? "bg-primary/20 animate-shimmer"
-                            : "bg-muted/20"
-                        }`}
-                      />
-                    ))}
-                  </div>
-                </div>
+              
+              <div className="grid grid-cols-7 gap-3">
+                {Array.from({ length: 35 }).map((_, i) => (
+                  <div
+                    key={i}
+                    className="aspect-square bg-white/10 rounded-lg border border-white/20 hover:bg-white/20 transition-all animate-pulse"
+                    style={{ animationDelay: `${i * 50}ms` }}
+                  ></div>
+                ))}
               </div>
 
-              {/* Bottom Stats */}
-              <div className="grid grid-cols-3 gap-4 pt-4 border-t">
-                {[
-                  { icon: Calendar, label: "Courses", value: "6/8" },
-                  { icon: Clock, label: "Hours", value: "18" },
-                  { icon: Users, label: "Conflicts", value: "0" },
-                ].map((stat, i) => (
-                  <div key={i} className="flex items-center gap-3 p-4 bg-muted/30 rounded-lg">
-                    <stat.icon className="w-8 h-8 text-primary" />
-                    <div>
-                      <div className="text-sm text-muted-foreground">{stat.label}</div>
-                      <div className="text-2xl font-bold">{stat.value}</div>
-                    </div>
-                  </div>
+              <div className="space-y-4">
+                {Array.from({ length: 4 }).map((_, i) => (
+                  <div
+                    key={i}
+                    className="h-24 bg-gradient-to-r from-primary/30 via-accent/30 to-secondary/30 rounded-xl border border-white/10 animate-shimmer"
+                    style={{ animationDelay: `${i * 200}ms` }}
+                  ></div>
                 ))}
               </div>
             </div>
           </div>
 
-          {/* Features Preview */}
-          <div className="mt-16 grid md:grid-cols-3 gap-6">
+          {/* Enhanced Features Grid */}
+          <div className="grid md:grid-cols-3 gap-8 mt-16">
             {[
-              {
-                title: "Smart Conflict Detection",
-                desc: "AI automatically finds and prevents scheduling conflicts",
+              { 
+                icon: Brain,
+                title: "Smart Conflict Detection", 
+                desc: "AI automatically identifies and resolves scheduling conflicts in real-time" 
               },
-              {
-                title: "Preference Learning",
-                desc: "Learns your preferred days, times, and instructors",
+              { 
+                icon: CheckCircle,
+                title: "Preference Learning", 
+                desc: "Adapts to your unique scheduling preferences and patterns over time" 
               },
-              {
-                title: "One-Click Export",
-                desc: "Export to PDF, Google Calendar, or iCal format",
+              { 
+                icon: Calendar,
+                title: "One-Click Export", 
+                desc: "Seamlessly export your optimized schedule to any calendar app" 
               },
             ].map((feature, i) => (
               <div
                 key={i}
-                className="p-6 bg-card/50 border rounded-xl hover:shadow-lg transition-shadow"
+                className="group p-8 rounded-2xl bg-background/40 backdrop-blur-xl border border-white/10 hover:border-primary/50 hover:bg-background/60 transition-all duration-300 hover:scale-105 hover:shadow-xl hover:shadow-primary/20"
               >
-                <h3 className="font-bold mb-2">{feature.title}</h3>
-                <p className="text-sm text-muted-foreground">{feature.desc}</p>
+                <feature.icon className="w-12 h-12 mb-4 text-primary group-hover:scale-110 transition-transform" />
+                <h3 className="font-bold text-xl mb-3 text-glow">{feature.title}</h3>
+                <p className="text-sm text-muted-foreground leading-relaxed">{feature.desc}</p>
               </div>
             ))}
           </div>
+
+          <Button
+            size="lg"
+            className="mt-12 px-10 py-7 text-lg rounded-full bg-gradient-to-r from-primary to-accent hover:scale-105 transition-all duration-300 shadow-lg hover:shadow-xl hover:shadow-primary/30"
+            onClick={() => navigate("/")}
+          >
+            <Sparkles className="mr-2 w-5 h-5" />
+            Notify Me When Ready
+          </Button>
         </div>
       </div>
     </div>
   );
 }
+
+export default Scheduler;

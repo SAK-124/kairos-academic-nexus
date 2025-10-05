@@ -6,12 +6,13 @@ import { login } from "@/lib/auth";
 import { useToast } from "@/hooks/use-toast";
 
 interface AuthModalProps {
-  open: boolean;
-  onOpenChange: (open: boolean) => void;
-  onSuccess: () => void;
+  open?: boolean;
+  onOpenChange?: (open: boolean) => void;
+  onSuccess?: () => void;
+  onClose?: () => void;
 }
 
-export const AuthModal = ({ open, onOpenChange, onSuccess }: AuthModalProps) => {
+export const AuthModal = ({ open, onOpenChange, onSuccess, onClose }: AuthModalProps) => {
   const [email, setEmail] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const { toast } = useToast();
@@ -53,7 +54,7 @@ export const AuthModal = ({ open, onOpenChange, onSuccess }: AuthModalProps) => 
   };
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
+    <Dialog open={open ?? true} onOpenChange={onClose ? () => onClose() : onOpenChange}>
       <DialogContent className="sm:max-w-md animate-scale-in">
         <DialogHeader>
           <DialogTitle className="text-2xl font-bold bg-gradient-to-r from-primary to-accent bg-clip-text text-transparent">

@@ -11,7 +11,7 @@ import { PricingSection } from "@/components/landing/PricingSection";
 import { AuthModal } from "@/components/AuthModal";
 import { EnhancedAdminPanel } from "@/components/EnhancedAdminPanel";
 import { AISearchBar } from "@/components/AISearchBar";
-import { ThemeToggle } from "@/components/ThemeToggle";
+import { Navigation } from "@/components/Navigation";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 
@@ -80,24 +80,32 @@ const Index = () => {
   }
 
   return (
-    <div className="relative">
-      <ThemeToggle />
-      {isAdmin && (
-        <button
-          onClick={() => setShowAdminPanel(true)}
-          className="fixed bottom-6 left-6 z-40 px-4 py-2 bg-primary text-primary-foreground rounded-full shadow-lg hover:scale-110 transition-transform text-sm font-medium"
-        >
-          Admin Panel
-        </button>
-      )}
-      <HeroSection onCTAClick={handleCTAClick} />
-      <SocialProofSection />
-      <ProblemSection />
-      <ValueSection />
-      <HowItWorksSection />
-      <TestimonialSection />
-      <FAQSection />
-      <PricingSection />
+    <div className="relative min-h-screen">
+      {/* Animated gradient orbs background */}
+      <div className="fixed inset-0 -z-10 overflow-hidden">
+        <div className="gradient-orb gradient-orb-1"></div>
+        <div className="gradient-orb gradient-orb-2"></div>
+        <div className="gradient-orb gradient-orb-3"></div>
+      </div>
+
+      <Navigation 
+        user={user}
+        isAdmin={isAdmin}
+        onAdminClick={() => setShowAdminPanel(true)}
+        onLoginClick={() => setShowAuthModal(true)}
+      />
+      
+      <div className="pt-16">
+        <HeroSection onCTAClick={handleCTAClick} />
+        <SocialProofSection />
+        <ProblemSection />
+        <ValueSection />
+        <HowItWorksSection />
+        <TestimonialSection />
+        <FAQSection />
+        <PricingSection />
+      </div>
+
       <AISearchBar />
       {showAuthModal && <AuthModal onClose={() => setShowAuthModal(false)} />}
       {showAdminPanel && <EnhancedAdminPanel onClose={() => setShowAdminPanel(false)} />}

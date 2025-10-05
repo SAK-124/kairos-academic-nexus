@@ -21,10 +21,7 @@ export const Navigation = ({ user, isAdmin, onAdminClick, onLoginClick }: Naviga
   const handleSignOut = async () => {
     const { error } = await supabase.auth.signOut();
     if (error) {
-      toast({ title: "Error signing out", description: error.message, variant: "destructive" });
-    } else {
-      toast({ title: "Signed out successfully" });
-      navigate("/");
+      console.error("Error signing out:", error);
     }
   };
 

@@ -70,17 +70,17 @@ All colors MUST be HSL.
     --popover: 222.2 84% 4.9%;
     --popover-foreground: 210 40% 98%;
 
-    --primary: 262 83% 68%;
+    --primary: 250 85% 65%;
     --primary-foreground: 0 0% 100%;
-    --primary-glow: 262 83% 78%;
+    --primary-glow: 250 85% 75%;
 
-    --secondary: 180 100% 55%;
+    --secondary: 200 90% 60%;
     --secondary-foreground: 0 0% 100%;
 
     --muted: 217.2 32.6% 17.5%;
     --muted-foreground: 215 20.2% 65.1%;
 
-    --accent: 340 82% 72%;
+    --accent: 280 75% 68%;
     --accent-foreground: 0 0% 100%;
 
     --destructive: 0 62.8% 30.6%;
@@ -194,7 +194,7 @@ All colors MUST be HSL.
       transform: translateY(0px);
     }
     50% {
-      transform: translateY(-20px);
+      transform: translateY(-6px);
     }
   }
   
@@ -239,7 +239,7 @@ All colors MUST be HSL.
   }
   
   .animate-float {
-    animation: float 6s ease-in-out infinite;
+    animation: float 10s ease-in-out infinite;
   }
   
   .animate-shimmer {

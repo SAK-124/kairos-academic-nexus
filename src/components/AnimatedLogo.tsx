@@ -9,9 +9,8 @@ export const AnimatedLogo = () => {
       >
         <defs>
           <linearGradient id="logo-gradient" x1="0%" y1="0%" x2="100%" y2="100%">
-            <stop offset="0%" className="animate-shimmer" style={{ stopColor: "hsl(var(--primary))" }} />
-            <stop offset="50%" style={{ stopColor: "hsl(var(--accent))" }} />
-            <stop offset="100%" className="animate-shimmer" style={{ stopColor: "hsl(var(--primary))" }} />
+            <stop offset="0%" style={{ stopColor: "hsl(250 85% 65%)" }} />
+            <stop offset="100%" style={{ stopColor: "hsl(280 75% 68%)" }} />
           </linearGradient>
           <filter id="glow">
             <feGaussianBlur stdDeviation="2" result="coloredBlur"/>
@@ -39,10 +38,10 @@ export const AnimatedLogo = () => {
           strokeLinejoin="round"
           fill="none"
           filter="url(#glow)"
-          className="transition-all duration-500 group-hover:stroke-[3]"
+          className="transition-all duration-500 group-hover:stroke-[3] group-hover:rotate-12"
         />
       </svg>
-      <span className="text-2xl font-bold bg-gradient-to-r from-primary via-accent to-primary bg-clip-text text-transparent animate-shimmer group-hover:scale-105 transition-transform">
+      <span className="text-2xl font-bold bg-gradient-to-r from-primary to-accent bg-clip-text text-transparent transition-transform group-hover:scale-105">
         Kairos
       </span>
     </div>

@@ -73,7 +73,7 @@ export const PricingSection = () => {
   };
 
   return (
-    <section className="py-24 px-4 bg-muted/30">
+    <section id="pricing" className="py-24 px-4 bg-muted/30">
       <div className="max-w-7xl mx-auto">
         <h2 className="text-4xl md:text-5xl font-bold text-center mb-4">
           Simple <span className="bg-gradient-to-r from-primary to-accent bg-clip-text text-transparent">Pricing</span>

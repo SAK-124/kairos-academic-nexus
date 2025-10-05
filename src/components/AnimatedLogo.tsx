@@ -1,6 +1,10 @@
-export const AnimatedLogo = () => {
+interface AnimatedLogoProps {
+  onClick?: () => void;
+}
+
+export const AnimatedLogo = ({ onClick }: AnimatedLogoProps) => {
   return (
-    <div className="flex items-center gap-2 group cursor-pointer">
+    <div onClick={onClick} className="flex items-center gap-2 group cursor-pointer">
       <svg
         width="40"
         height="40"

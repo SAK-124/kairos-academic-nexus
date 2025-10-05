@@ -26,7 +26,7 @@ const faqs = [
 
 export const FAQSection = () => {
   return (
-    <section id="faq" className="py-24 px-4 bg-background">
+    <section id="faqs" className="py-24 px-4 bg-background">
       <div className="max-w-4xl mx-auto">
         <h2 className="text-4xl md:text-5xl font-bold text-center mb-4">
           Frequently Asked <span className="bg-gradient-to-r from-primary to-accent bg-clip-text text-transparent">Questions</span>

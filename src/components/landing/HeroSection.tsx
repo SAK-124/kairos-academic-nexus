@@ -74,7 +74,7 @@ export const HeroSection = ({ onCTAClick }: HeroSectionProps) => {
 
   return (
     <section
-      id="hero"
+      id="home"
       className="min-h-screen flex items-center justify-center px-4 animate-dissolve relative overflow-hidden"
     >
       {/* Pulsating Background */}
@@ -102,7 +102,7 @@ export const HeroSection = ({ onCTAClick }: HeroSectionProps) => {
                 disabled={!buttonMapping.enabled}
                 className="h-14 px-8 text-lg bg-gradient-to-r from-primary to-accent hover:opacity-90 group"
               >
-                {buttonMapping.text || content.cta_text || "Start Planning"}
+                {buttonMapping.text || content.cta_text || "Join Waitlist"}
                 <ArrowRight className="ml-2 group-hover:translate-x-1 transition-transform" />
               </Button>
             </TooltipTrigger>

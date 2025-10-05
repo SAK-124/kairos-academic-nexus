@@ -30,7 +30,7 @@ export const Navigation = ({ user, isAdmin, onAdminClick, onLoginClick }: Naviga
       <div className="container mx-auto h-full flex items-center justify-between px-6">
         <AnimatedLogo />
         
-        <div className="flex items-center gap-4">
+        <div className="flex items-center gap-3 md:gap-6 flex-wrap">
           <ThemeToggle />
           
           {user ? (

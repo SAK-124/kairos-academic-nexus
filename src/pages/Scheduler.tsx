@@ -12,7 +12,14 @@ const Scheduler = () => {
   const { toast } = useToast();
   const [user, setUser] = useState<any>(null);
   const [isAdmin, setIsAdmin] = useState(false);
-  const [email, setEmail] = useState("");
+  const [formData, setFormData] = useState({
+    email: "",
+    full_name: "",
+    phone_number: "",
+    university: "",
+    graduation_year: "",
+    interest_level: "casual" as "casual" | "serious" | "urgent",
+  });
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   useEffect(() => {
@@ -47,10 +54,10 @@ const Scheduler = () => {
   const handleEarlyBirdSignup = async (e: React.FormEvent) => {
     e.preventDefault();
     
-    if (!email || !email.includes("@")) {
+    if (!formData.email || !formData.full_name) {
       toast({
-        title: "Invalid email",
-        description: "Please enter a valid email address.",
+        title: "Required Fields Missing",
+        description: "Please provide your name and email.",
         variant: "destructive",
       });
       return;
@@ -61,7 +68,7 @@ const Scheduler = () => {
     try {
       const { error } = await supabase
         .from("early_access_signups")
-        .insert([{ email }]);
+        .insert([formData]);
 
       if (error) {
         if (error.code === "23505") {
@@ -77,7 +84,14 @@ const Scheduler = () => {
           title: "Success! 🎉",
           description: "You're on the waitlist! We'll notify you when we launch.",
         });
-        setEmail("");
+        setFormData({
+          email: "",
+          full_name: "",
+          phone_number: "",
+          university: "",
+          graduation_year: "",
+          interest_level: "casual",
+        });
       }
     } catch (error: any) {
       toast({
@@ -212,14 +226,61 @@ const Scheduler = () => {
               </div>
               
               <form onSubmit={handleEarlyBirdSignup} className="space-y-4">
-                <Input
-                  type="email"
-                  placeholder="Enter your email"
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                  className="bg-background/50 backdrop-blur-sm border-primary/20"
-                  required
-                />
+                <div className="grid md:grid-cols-2 gap-4">
+                  <Input
+                    type="text"
+                    placeholder="Full Name *"
+                    value={formData.full_name}
+                    onChange={(e) => setFormData(prev => ({ ...prev, full_name: e.target.value }))}
+                    className="bg-background/50 backdrop-blur-sm border-primary/20"
+                    required
+                  />
+                  <Input
+                    type="email"
+                    placeholder="Email Address *"
+                    value={formData.email}
+                    onChange={(e) => setFormData(prev => ({ ...prev, email: e.target.value }))}
+                    className="bg-background/50 backdrop-blur-sm border-primary/20"
+                    required
+                  />
+                </div>
+                
+                <div className="grid md:grid-cols-2 gap-4">
+                  <Input
+                    type="tel"
+                    placeholder="Phone Number"
+                    value={formData.phone_number}
+                    onChange={(e) => setFormData(prev => ({ ...prev, phone_number: e.target.value }))}
+                    className="bg-background/50 backdrop-blur-sm border-primary/20"
+                  />
+                  <Input
+                    type="text"
+                    placeholder="University"
+                    value={formData.university}
+                    onChange={(e) => setFormData(prev => ({ ...prev, university: e.target.value }))}
+                    className="bg-background/50 backdrop-blur-sm border-primary/20"
+                  />
+                </div>
+                
+                <div className="grid md:grid-cols-2 gap-4">
+                  <Input
+                    type="text"
+                    placeholder="Graduation Year"
+                    value={formData.graduation_year}
+                    onChange={(e) => setFormData(prev => ({ ...prev, graduation_year: e.target.value }))}
+                    className="bg-background/50 backdrop-blur-sm border-primary/20"
+                  />
+                  <select
+                    value={formData.interest_level}
+                    onChange={(e) => setFormData(prev => ({ ...prev, interest_level: e.target.value as any }))}
+                    className="flex h-10 w-full rounded-md border border-primary/20 bg-background/50 backdrop-blur-sm px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                  >
+                    <option value="casual">Just Exploring</option>
+                    <option value="serious">Very Interested</option>
+                    <option value="urgent">Need It Now!</option>
+                  </select>
+                </div>
+                
                 <Button
                   type="submit"
                   size="lg"

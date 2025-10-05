@@ -65,6 +65,36 @@ export type Database = {
         }
         Relationships: []
       }
+      contact_submissions: {
+        Row: {
+          created_at: string | null
+          email: string
+          id: string
+          message: string
+          name: string
+          resolved: boolean | null
+          subject: string | null
+        }
+        Insert: {
+          created_at?: string | null
+          email: string
+          id?: string
+          message: string
+          name: string
+          resolved?: boolean | null
+          subject?: string | null
+        }
+        Update: {
+          created_at?: string | null
+          email?: string
+          id?: string
+          message?: string
+          name?: string
+          resolved?: boolean | null
+          subject?: string | null
+        }
+        Relationships: []
+      }
       content_sections: {
         Row: {
           content: Json
@@ -93,20 +123,35 @@ export type Database = {
         Row: {
           created_at: string | null
           email: string
+          full_name: string | null
+          graduation_year: string | null
           id: string
+          interest_level: string | null
           notified: boolean | null
+          phone_number: string | null
+          university: string | null
         }
         Insert: {
           created_at?: string | null
           email: string
+          full_name?: string | null
+          graduation_year?: string | null
           id?: string
+          interest_level?: string | null
           notified?: boolean | null
+          phone_number?: string | null
+          university?: string | null
         }
         Update: {
           created_at?: string | null
           email?: string
+          full_name?: string | null
+          graduation_year?: string | null
           id?: string
+          interest_level?: string | null
           notified?: boolean | null
+          phone_number?: string | null
+          university?: string | null
         }
         Relationships: []
       }

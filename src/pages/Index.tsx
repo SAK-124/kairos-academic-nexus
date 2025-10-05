@@ -1,6 +1,4 @@
 import { useState, useEffect } from "react";
-import { Button } from "@/components/ui/button";
-import { Settings } from "lucide-react";
 import { IntroSection } from "@/components/landing/IntroSection";
 import { HeroSection } from "@/components/landing/HeroSection";
 import { SocialProofSection } from "@/components/landing/SocialProofSection";
@@ -11,111 +9,99 @@ import { TestimonialSection } from "@/components/landing/TestimonialSection";
 import { FAQSection } from "@/components/landing/FAQSection";
 import { PricingSection } from "@/components/landing/PricingSection";
 import { AuthModal } from "@/components/AuthModal";
-import { AdminPanel } from "@/components/AdminPanel";
-import { getCurrentUser, logout, isAdmin } from "@/lib/auth";
+import { EnhancedAdminPanel } from "@/components/EnhancedAdminPanel";
+import { AISearchBar } from "@/components/AISearchBar";
+import { ThemeToggle } from "@/components/ThemeToggle";
+import { supabase } from "@/integrations/supabase/client";
+import { useToast } from "@/hooks/use-toast";
 
 const Index = () => {
   const [showIntro, setShowIntro] = useState(true);
   const [showAuthModal, setShowAuthModal] = useState(false);
   const [showAdminPanel, setShowAdminPanel] = useState(false);
-  const [user, setUser] = useState(getCurrentUser());
+  const [user, setUser] = useState<any>(null);
+  const [isAdmin, setIsAdmin] = useState(false);
+  const { toast } = useToast();
 
   useEffect(() => {
-    const currentUser = getCurrentUser();
-    if (!currentUser && !showIntro) {
-      setShowAuthModal(true);
+    checkUser();
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+      setUser(session?.user ?? null);
+      checkAdminStatus(session?.user);
+    });
+    return () => subscription.unsubscribe();
+  }, []);
+
+  const checkUser = async () => {
+    const { data: { session } } = await supabase.auth.getSession();
+    setUser(session?.user ?? null);
+    checkAdminStatus(session?.user);
+  };
+
+  const checkAdminStatus = async (currentUser: any) => {
+    if (!currentUser) {
+      setIsAdmin(false);
+      return;
     }
-  }, [showIntro]);
+    const { data } = await supabase
+      .from("user_roles")
+      .select("role")
+      .eq("user_id", currentUser.id)
+      .eq("role", "admin")
+      .maybeSingle();
+    setIsAdmin(!!data);
+  };
 
   const handleIntroComplete = () => {
     setShowIntro(false);
-    const currentUser = getCurrentUser();
-    if (!currentUser) {
-      setTimeout(() => setShowAuthModal(true), 300);
-    }
-  };
-
-  const handleAuthSuccess = () => {
-    setUser(getCurrentUser());
-  };
-
-  const handleLogout = () => {
-    logout();
-    setUser(null);
-    setShowAuthModal(true);
+    if (!user) setShowAuthModal(true);
   };
 
   const handleCTAClick = () => {
     if (!user) {
       setShowAuthModal(true);
+    } else {
+      toast({ title: "Coming Soon!", description: "The scheduler is almost ready." });
     }
   };
+
+  useEffect(() => {
+    const handleKeyPress = (e: KeyboardEvent) => {
+      if (e.ctrlKey && e.shiftKey && e.key === "A" && isAdmin) {
+        setShowAdminPanel(true);
+      }
+    };
+    window.addEventListener("keydown", handleKeyPress);
+    return () => window.removeEventListener("keydown", handleKeyPress);
+  }, [isAdmin]);
 
   if (showIntro) {
     return <IntroSection onComplete={handleIntroComplete} />;
   }
 
   return (
-    <>
-      {/* Fixed Header */}
-      <header className="fixed top-0 left-0 right-0 z-40 bg-background/80 backdrop-blur-md border-b">
-        <div className="max-w-7xl mx-auto px-4 h-16 flex items-center justify-between">
-          <h1 className="text-2xl font-bold bg-gradient-to-r from-primary to-accent bg-clip-text text-transparent">
-            Kairos
-          </h1>
-          <div className="flex items-center gap-4">
-            {user ? (
-              <>
-                <span className="text-sm text-muted-foreground hidden md:inline">
-                  {user.email}
-                </span>
-                {isAdmin(user) && (
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => setShowAdminPanel(true)}
-                    className="gap-2"
-                  >
-                    <Settings className="w-4 h-4" />
-                    Admin
-                  </Button>
-                )}
-                <Button variant="ghost" size="sm" onClick={handleLogout}>
-                  Logout
-                </Button>
-              </>
-            ) : (
-              <Button size="sm" onClick={() => setShowAuthModal(true)}>
-                Sign In
-              </Button>
-            )}
-          </div>
-        </div>
-      </header>
-
-      {/* Main Content */}
-      <main className="pt-16">
-        <HeroSection onCTAClick={handleCTAClick} />
-        <SocialProofSection />
-        <ProblemSection />
-        <ValueSection />
-        <HowItWorksSection />
-        <TestimonialSection />
-        <FAQSection />
-        <PricingSection />
-      </main>
-
-      {/* Modals */}
-      <AuthModal
-        open={showAuthModal}
-        onOpenChange={setShowAuthModal}
-        onSuccess={handleAuthSuccess}
-      />
-
-      {showAdminPanel && isAdmin(user) && (
-        <AdminPanel onClose={() => setShowAdminPanel(false)} />
+    <div className="relative">
+      <ThemeToggle />
+      {isAdmin && (
+        <button
+          onClick={() => setShowAdminPanel(true)}
+          className="fixed bottom-6 left-6 z-40 px-4 py-2 bg-primary text-primary-foreground rounded-full shadow-lg hover:scale-110 transition-transform text-sm font-medium"
+        >
+          Admin Panel
+        </button>
       )}
-    </>
+      <HeroSection onCTAClick={handleCTAClick} />
+      <SocialProofSection />
+      <ProblemSection />
+      <ValueSection />
+      <HowItWorksSection />
+      <TestimonialSection />
+      <FAQSection />
+      <PricingSection />
+      <AISearchBar />
+      {showAuthModal && <AuthModal onClose={() => setShowAuthModal(false)} />}
+      {showAdminPanel && <EnhancedAdminPanel onClose={() => setShowAdminPanel(false)} />}
+    </div>
   );
 };
 

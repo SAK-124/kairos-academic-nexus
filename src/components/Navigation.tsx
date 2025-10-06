@@ -59,6 +59,26 @@ export const Navigation = ({ user, isAdmin, onAdminClick, onLoginClick }: Naviga
     { label: "Pricing", id: "pricing" },
     { label: "FAQs", id: "faqs" },
   ];
+const handleWaitlistClick = () => {
+  if (location.pathname === "/scheduler") {
+    // On scheduler page → scroll to bottom
+    window.scrollTo({ top: document.body.scrollHeight, behavior: "smooth" });
+  } else {
+    // On homepage → scroll to waitlist section
+    const waitlistSection = document.getElementById("waitlist");
+    if (waitlistSection) {
+      waitlistSection.scrollIntoView({ behavior: "smooth", block: "start" });
+    } else {
+      // fallback if element doesn't exist
+      navigate("/#waitlist");
+    }
+  }
+
+  setMobileMenuOpen(false);
+};
+
+
+
 
   return (
     <header className="fixed top-0 left-0 right-0 z-50 h-16 backdrop-blur-xl bg-background/30 border-b border-white/10">
@@ -82,7 +102,7 @@ export const Navigation = ({ user, isAdmin, onAdminClick, onLoginClick }: Naviga
         <div className="hidden md:flex items-center gap-3">
           <ThemeToggle />
           <Button
-            onClick={() => navigate('/scheduler')}
+            onClick={handleWaitlistClick}
             variant="default"
             size="sm"
           >
@@ -150,8 +170,8 @@ export const Navigation = ({ user, isAdmin, onAdminClick, onLoginClick }: Naviga
                 {/* Mobile CTA */}
                 <Button
                   onClick={() => {
-                    navigate('/scheduler');
-                    setMobileMenuOpen(false);
+                    handleWaitlistClick();
+                    ;
                   }}
                   variant="default"
                   className="w-full"

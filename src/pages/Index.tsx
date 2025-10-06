@@ -14,6 +14,8 @@ import { AISearchBar } from "@/components/AISearchBar";
 import { Navigation } from "@/components/Navigation";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
+import { WaitlistSection } from "@/components/landing/WaitlistSection";
+import { FooterSection } from "@/components/landing/FooterSection";
 
 const Index = () => {
   const [showIntro, setShowIntro] = useState(true);
@@ -103,6 +105,8 @@ const Index = () => {
         <TestimonialSection />
         <FAQSection />
         <PricingSection />
+        <WaitlistSection />
+        <FooterSection />
       </div>
 
       <AISearchBar />

@@ -6,6 +6,7 @@ import { Navigation } from "@/components/Navigation";
 import { useState, useEffect } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
+import { WaitlistForm } from "@/components/WaitListForm";
 
 const Scheduler = () => {
   const navigate = useNavigate();
@@ -215,89 +216,8 @@ const Scheduler = () => {
           </div>
 
           {/* Early Bird Signup Form */}
-          <div className="mt-16 max-w-md mx-auto">
-            <div className="p-8 rounded-2xl bg-background/60 backdrop-blur-xl border border-primary/20 shadow-2xl">
-              <div className="text-center mb-6">
-                <Mail className="w-12 h-12 mx-auto mb-4 text-primary" />
-                <h3 className="text-2xl font-bold mb-2">Join the Waitlist</h3>
-                <p className="text-muted-foreground">
-                  Be the first to know when we launch. Get early access and exclusive features.
-                </p>
-              </div>
-              
-              <form onSubmit={handleEarlyBirdSignup} className="space-y-4">
-                <div className="grid md:grid-cols-2 gap-4">
-                  <Input
-                    type="text"
-                    placeholder="Full Name *"
-                    value={formData.full_name}
-                    onChange={(e) => setFormData(prev => ({ ...prev, full_name: e.target.value }))}
-                    className="bg-background/50 backdrop-blur-sm border-primary/20"
-                    required
-                  />
-                  <Input
-                    type="email"
-                    placeholder="Email Address *"
-                    value={formData.email}
-                    onChange={(e) => setFormData(prev => ({ ...prev, email: e.target.value }))}
-                    className="bg-background/50 backdrop-blur-sm border-primary/20"
-                    required
-                  />
-                </div>
-                
-                <div className="grid md:grid-cols-2 gap-4">
-                  <Input
-                    type="tel"
-                    placeholder="Phone Number"
-                    value={formData.phone_number}
-                    onChange={(e) => setFormData(prev => ({ ...prev, phone_number: e.target.value }))}
-                    className="bg-background/50 backdrop-blur-sm border-primary/20"
-                  />
-                  <Input
-                    type="text"
-                    placeholder="University"
-                    value={formData.university}
-                    onChange={(e) => setFormData(prev => ({ ...prev, university: e.target.value }))}
-                    className="bg-background/50 backdrop-blur-sm border-primary/20"
-                  />
-                </div>
-                
-                <div className="grid md:grid-cols-2 gap-4">
-                  <Input
-                    type="text"
-                    placeholder="Graduation Year"
-                    value={formData.graduation_year}
-                    onChange={(e) => setFormData(prev => ({ ...prev, graduation_year: e.target.value }))}
-                    className="bg-background/50 backdrop-blur-sm border-primary/20"
-                  />
-                  <select
-                    value={formData.interest_level}
-                    onChange={(e) => setFormData(prev => ({ ...prev, interest_level: e.target.value as any }))}
-                    className="flex h-10 w-full rounded-md border border-primary/20 bg-background/50 backdrop-blur-sm px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-                  >
-                    <option value="casual">Just Exploring</option>
-                    <option value="serious">Very Interested</option>
-                    <option value="urgent">Need It Now!</option>
-                  </select>
-                </div>
-                
-                <Button
-                  type="submit"
-                  size="lg"
-                  className="w-full bg-gradient-to-r from-primary to-accent hover:scale-105 transition-all duration-300"
-                  disabled={isSubmitting}
-                >
-                  {isSubmitting ? (
-                    "Joining..."
-                  ) : (
-                    <>
-                      <Sparkles className="mr-2 w-5 h-5" />
-                      Join Waitlist
-                    </>
-                  )}
-                </Button>
-              </form>
-            </div>
+          <div id="waitlist" className="mt-16 max-w-md mx-auto">
+            <WaitlistForm />
           </div>
         </div>
       </div>

@@ -92,27 +92,40 @@ export const HeroSection = ({ onCTAClick }: HeroSectionProps) => {
         <p className="text-xl md:text-2xl text-muted-foreground max-w-2xl mx-auto">
           {content.description || "Transform chaos into clarity. Smart scheduling, intelligent notes, and seamless collaboration—all in one place."}
         </p>
+        <div className="mt-8 flex flex-col sm:flex-row items-center justify-center gap-6">
+                    <Button
+            onClick={() => {
+              const section = document.getElementById("waitlist");
+              section?.scrollIntoView({ behavior: "smooth" });
+            }}
+            size="lg"
+            variant="outline"
+            className="h-14 px-8 text-lg bg-gradient-to-r from-primary to-accent hover:opacity-90 group"
+    >
+      Join Waitlist!
+    </Button>
+          <TooltipProvider>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button
+                  onClick={handleCTAClick}
+                  size="lg"
+                  disabled={!buttonMapping.enabled}
+                  className="h-14  px-8 text-lg bg-gradient-to-r from-primary to-accent hover:opacity-90 group"
+                >
+                  {"Preview Scheduler Now!"}
+                  <ArrowRight className="ml-2 group-hover:translate-x-1 transition-transform" />
+                </Button>
+              </TooltipTrigger>
+              {buttonMapping.hover_text && (
+                <TooltipContent>
+                  <p>{buttonMapping.hover_text}</p>
+                </TooltipContent>
+              )}
+            </Tooltip>
+          </TooltipProvider>
 
-        <TooltipProvider>
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <Button
-                onClick={handleCTAClick}
-                size="lg"
-                disabled={!buttonMapping.enabled}
-                className="h-14 px-8 text-lg bg-gradient-to-r from-primary to-accent hover:opacity-90 group"
-              >
-                {buttonMapping.text || content.cta_text || "Join Waitlist"}
-                <ArrowRight className="ml-2 group-hover:translate-x-1 transition-transform" />
-              </Button>
-            </TooltipTrigger>
-            {buttonMapping.hover_text && (
-              <TooltipContent>
-                <p>{buttonMapping.hover_text}</p>
-              </TooltipContent>
-            )}
-          </Tooltip>
-        </TooltipProvider>
+  </div>
       </div>
     </section>
   );

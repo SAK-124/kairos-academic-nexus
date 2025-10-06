@@ -5,6 +5,7 @@ import { useNavigate } from "react-router-dom";
 import { useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
+import { WaitlistForm } from "../WaitListForm";
 
 const tiers = [
   {
@@ -102,83 +103,6 @@ export const PricingSection = () => {
         </div>
       </div>
       
-      {/* Early Access Signup Section */}
-      <div className="mt-16 max-w-2xl mx-auto">
-        <div className="bg-gradient-to-br from-primary/10 to-accent/10 rounded-3xl p-8 md:p-12 border border-primary/20 shadow-xl">
-          <div className="text-center mb-8">
-            <div className="inline-flex items-center justify-center w-16 h-16 rounded-full bg-primary/20 mb-4">
-              <Mail className="w-8 h-8 text-primary" />
-            </div>
-            <h3 className="text-3xl font-bold mb-3 bg-gradient-to-r from-primary to-accent bg-clip-text text-transparent">
-              Join Early Access
-            </h3>
-            <p className="text-muted-foreground">
-              Be among the first to experience Kairos. Get exclusive early access and special launch benefits.
-            </p>
-          </div>
-          
-          <form onSubmit={handleFooterSignup} className="space-y-4">
-            <div className="grid md:grid-cols-2 gap-4">
-              <Input
-                type="text"
-                placeholder="Full Name"
-                value={formData.full_name}
-                onChange={(e) => setFormData(prev => ({ ...prev, full_name: e.target.value }))}
-                required
-                disabled={isSubmitting}
-                className="bg-background/50"
-              />
-              <Input
-                type="email"
-                placeholder="Email Address"
-                value={formData.email}
-                onChange={(e) => setFormData(prev => ({ ...prev, email: e.target.value }))}
-                required
-                disabled={isSubmitting}
-                className="bg-background/50"
-              />
-            </div>
-            <Button 
-              type="submit" 
-              size="lg" 
-              className="w-full bg-gradient-to-r from-primary to-accent"
-              disabled={isSubmitting}
-            >
-              {isSubmitting ? "Joining..." : (
-                <>
-                  <Sparkles className="mr-2 w-5 h-5" />
-                  Join Waitlist
-                </>
-              )}
-            </Button>
-          </form>
-        </div>
-      </div>
-
-      <footer className="mt-24 border-t pt-12">
-        <div className="max-w-7xl mx-auto px-4">
-          <div className="flex flex-col md:flex-row justify-between items-center gap-8">
-            <div className="text-center md:text-left">
-              <h3 className="text-2xl font-bold mb-2">Kairos</h3>
-              <p className="text-muted-foreground">Your AI-Powered Academic Companion</p>
-            </div>
-            <div className="flex gap-6 text-sm text-muted-foreground">
-              <button onClick={() => navigate("/privacy")} className="hover:text-primary transition-colors">
-                Privacy Policy
-              </button>
-              <button onClick={() => navigate("/terms")} className="hover:text-primary transition-colors">
-                Terms of Service
-              </button>
-              <button onClick={() => navigate("/contact")} className="hover:text-primary transition-colors">
-                Contact
-              </button>
-            </div>
-          </div>
-          <div className="mt-8 text-center text-sm text-muted-foreground">
-            © 2025 Kairos. All rights reserved.
-          </div>
-        </div>
-      </footer>
-    </section>
+      </section>
   );
 };

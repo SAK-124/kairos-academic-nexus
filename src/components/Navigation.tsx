@@ -55,6 +55,7 @@ export const Navigation = ({ user, isAdmin, onAdminClick, onLoginClick }: Naviga
 
   const navLinks = [
     { label: "Home", id: "home" },
+    { label: "Notes", route: "/notes" },
     { label: "Features", id: "features" },
     { label: "Pricing", id: "pricing" },
     { label: "FAQs", id: "faqs" },
@@ -89,8 +90,14 @@ const handleWaitlistClick = () => {
         <nav className="hidden lg:flex items-center gap-6">
           {navLinks.map((link) => (
             <button
-              key={link.id}
-              onClick={() => scrollToSection(link.id)}
+              key={link.label}
+              onClick={() => {
+                if (link.route) {
+                  navigate(link.route);
+                } else if (link.id) {
+                  scrollToSection(link.id);
+                }
+              }}
               className="text-sm font-medium text-muted-foreground hover:text-foreground transition-colors"
             >
               {link.label}
@@ -158,8 +165,15 @@ const handleWaitlistClick = () => {
                 <nav className="flex flex-col gap-4">
                   {navLinks.map((link) => (
                     <button
-                      key={link.id}
-                      onClick={() => scrollToSection(link.id)}
+                      key={link.label}
+                      onClick={() => {
+                        if (link.route) {
+                          navigate(link.route);
+                          setMobileMenuOpen(false);
+                        } else if (link.id) {
+                          scrollToSection(link.id);
+                        }
+                      }}
                       className="text-left text-lg font-medium text-muted-foreground hover:text-foreground transition-colors"
                     >
                       {link.label}

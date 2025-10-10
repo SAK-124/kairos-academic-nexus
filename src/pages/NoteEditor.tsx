@@ -7,6 +7,9 @@ import { TipTapEditor } from '@/components/notes/editor/TipTapEditor';
 import { AIAssistantPanel } from '@/components/notes/editor/AIAssistantPanel';
 import { useToast } from '@/hooks/use-toast';
 import { AnimatedLogo } from '@/components/AnimatedLogo';
+import { FlashcardViewer } from '@/components/notes/FlashcardViewer';
+import { QuizViewer } from '@/components/notes/QuizViewer';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 
 export default function NoteEditor() {
   const { id } = useParams();
@@ -17,9 +20,17 @@ export default function NoteEditor() {
   const [title, setTitle] = useState('');
   const [isFavorite, setIsFavorite] = useState(false);
   const [lastSaved, setLastSaved] = useState<Date | null>(null);
+  const [showFlashcardViewer, setShowFlashcardViewer] = useState(false);
+  const [showQuizViewer, setShowQuizViewer] = useState(false);
+  const [flashcards, setFlashcards] = useState<any[]>([]);
+  const [quizQuestions, setQuizQuestions] = useState<any[]>([]);
+  const [isGenerating, setIsGenerating] = useState(false);
+  const [courses, setCourses] = useState<any[]>([]);
+  const [folders, setFolders] = useState<any[]>([]);
 
   useEffect(() => {
     checkAuthAndLoadNote();
+    loadCoursesAndFolders();
   }, [id]);
 
   const checkAuthAndLoadNote = async () => {
@@ -58,6 +69,19 @@ export default function NoteEditor() {
     }
   };
 
+  const loadCoursesAndFolders = async () => {
+    const { data: { session } } = await supabase.auth.getSession();
+    if (!session) return;
+
+    const [coursesData, foldersData] = await Promise.all([
+      supabase.from('courses').select('*').eq('user_id', session.user.id),
+      supabase.from('folders').select('*').eq('user_id', session.user.id),
+    ]);
+
+    if (coursesData.data) setCourses(coursesData.data);
+    if (foldersData.data) setFolders(foldersData.data);
+  };
+
   const handleTitleChange = async (newTitle: string) => {
     setTitle(newTitle);
     try {
@@ -85,6 +109,44 @@ export default function NoteEditor() {
     } catch (error: any) {
       toast({
         title: 'Error updating note',
+        description: error.message,
+        variant: 'destructive',
+      });
+    }
+  };
+
+  const handleCourseChange = async (courseId: string) => {
+    try {
+      const { error } = await supabase
+        .from('notes')
+        .update({ course_id: courseId === 'none' ? null : courseId })
+        .eq('id', id);
+
+      if (error) throw error;
+      setNote({ ...note, course_id: courseId === 'none' ? null : courseId });
+      toast({ title: 'Course updated' });
+    } catch (error: any) {
+      toast({
+        title: 'Error updating course',
+        description: error.message,
+        variant: 'destructive',
+      });
+    }
+  };
+
+  const handleFolderChange = async (folderId: string) => {
+    try {
+      const { error } = await supabase
+        .from('notes')
+        .update({ folder_id: folderId === 'none' ? null : folderId })
+        .eq('id', id);
+
+      if (error) throw error;
+      setNote({ ...note, folder_id: folderId === 'none' ? null : folderId });
+      toast({ title: 'Folder updated' });
+    } catch (error: any) {
+      toast({
+        title: 'Error updating folder',
         description: error.message,
         variant: 'destructive',
       });
@@ -131,6 +193,28 @@ export default function NoteEditor() {
               />
             </div>
             <div className="flex items-center gap-3">
+              <Select value={note.course_id || 'none'} onValueChange={handleCourseChange}>
+                <SelectTrigger className="w-40">
+                  <SelectValue placeholder="Course" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="none">No Course</SelectItem>
+                  {courses.map(c => (
+                    <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <Select value={note.folder_id || 'none'} onValueChange={handleFolderChange}>
+                <SelectTrigger className="w-40">
+                  <SelectValue placeholder="Folder" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="none">No Folder</SelectItem>
+                  {folders.map(f => (
+                    <SelectItem key={f.id} value={f.id}>{f.name}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
               <span className="text-sm text-muted-foreground">
                 {getLastSavedText()}
               </span>
@@ -163,10 +247,34 @@ export default function NoteEditor() {
           <AIAssistantPanel 
             noteId={id!} 
             courseId={note.course_id} 
-            folderId={note.folder_id} 
+            folderId={note.folder_id}
+            onShowFlashcards={(cards) => {
+              setFlashcards(cards);
+              setShowFlashcardViewer(true);
+            }}
+            onShowQuiz={(questions) => {
+              setQuizQuestions(questions);
+              setShowQuizViewer(true);
+            }}
+            onGeneratingChange={setIsGenerating}
           />
         </div>
       </div>
+
+      {showFlashcardViewer && (
+        <FlashcardViewer
+          flashcards={flashcards}
+          onClose={() => setShowFlashcardViewer(false)}
+          isGenerating={isGenerating}
+        />
+      )}
+
+      {showQuizViewer && (
+        <QuizViewer
+          questions={quizQuestions}
+          onClose={() => setShowQuizViewer(false)}
+        />
+      )}
     </div>
   );
 }

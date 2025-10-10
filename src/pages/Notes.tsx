@@ -7,12 +7,16 @@ import { NoteCard } from '@/components/notes/NoteCard';
 import { NotesSidebar } from '@/components/notes/NotesSidebar';
 import { SearchBar } from '@/components/notes/SearchBar';
 import { useToast } from '@/hooks/use-toast';
+import { AnimatedLogo } from '@/components/AnimatedLogo';
+import { FlashcardViewer } from '@/components/notes/FlashcardViewer';
+import { QuizViewer } from '@/components/notes/QuizViewer';
 
 interface Note {
   id: string;
   title: string;
   plain_text: string;
   course_id: string | null;
+  folder_id: string | null;
   tags: string[];
   is_favorite: boolean;
   updated_at: string;
@@ -23,6 +27,9 @@ export default function Notes() {
   const [notes, setNotes] = useState<Note[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
+  const [selectedCourseId, setSelectedCourseId] = useState<string | null>(null);
+  const [selectedFolderId, setSelectedFolderId] = useState<string | null>(null);
+  const [viewingMaterial, setViewingMaterial] = useState<any>(null);
   const navigate = useNavigate();
   const { toast } = useToast();
 
@@ -139,13 +146,13 @@ export default function Notes() {
   };
 
   const filteredNotes = notes.filter(note => {
-    if (!searchQuery) return true;
-    const query = searchQuery.toLowerCase();
-    return (
-      note.title.toLowerCase().includes(query) ||
-      note.plain_text?.toLowerCase().includes(query) ||
-      note.tags?.some(tag => tag.toLowerCase().includes(query))
-    );
+    const matchesSearch = !searchQuery || 
+      note.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      note.plain_text?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      note.tags?.some(tag => tag.toLowerCase().includes(searchQuery.toLowerCase()));
+    const matchesCourse = !selectedCourseId || note.course_id === selectedCourseId;
+    const matchesFolder = !selectedFolderId || note.folder_id === selectedFolderId;
+    return matchesSearch && matchesCourse && matchesFolder;
   });
 
   if (!user) {
@@ -157,16 +164,33 @@ export default function Notes() {
   }
 
   return (
-    <div className="min-h-screen bg-background">
-      <div className="flex">
-        <NotesSidebar onCreateNote={handleCreateNote} />
+    <div className="min-h-screen bg-background flex flex-col">
+      <div className="border-b border-border/40 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
+        <div className="max-w-7xl mx-auto px-6 py-4 flex items-center gap-4">
+          <AnimatedLogo onClick={() => navigate('/')} />
+          <h1 className="text-2xl font-bold">My Notes</h1>
+        </div>
+      </div>
 
-        <div className="flex-1 p-6">
-          <div className="max-w-7xl mx-auto">
+      <div className="flex flex-1">
+        <NotesSidebar 
+          onCreateNote={handleCreateNote}
+          onCourseClick={(courseId) => {
+            setSelectedCourseId(courseId === selectedCourseId ? null : courseId);
+            setSelectedFolderId(null);
+          }}
+          onFolderClick={(folderId) => {
+            setSelectedFolderId(folderId === selectedFolderId ? null : folderId);
+            setSelectedCourseId(null);
+          }}
+          onViewStudyMaterial={setViewingMaterial}
+          selectedCourseId={selectedCourseId}
+          selectedFolderId={selectedFolderId}
+        />
+
+        <div className="flex-1 p-8">
+          <div className="max-w-6xl mx-auto">
             <div className="flex items-center justify-between mb-8">
-              <h1 className="text-4xl font-bold bg-gradient-to-r from-primary via-secondary to-accent bg-clip-text text-transparent animate-shimmer">
-                My Notes
-              </h1>
               <SearchBar onSearch={handleSearch} />
             </div>
 
@@ -205,14 +229,28 @@ export default function Notes() {
             )}
           </div>
         </div>
+
+        <Button
+          className="fixed bottom-8 right-8 rounded-full w-14 h-14 shadow-lg"
+          onClick={handleCreateNote}
+        >
+          <Plus className="w-6 h-6" />
+        </Button>
       </div>
 
-      <Button
-        onClick={handleCreateNote}
-        className="fixed bottom-6 right-6 w-14 h-14 rounded-full shadow-2xl bg-gradient-to-r from-primary to-accent hover:scale-110 transition-transform"
-      >
-        <Plus className="w-6 h-6" />
-      </Button>
+      {viewingMaterial && viewingMaterial.type === 'flashcard' && (
+        <FlashcardViewer
+          flashcards={viewingMaterial.content}
+          onClose={() => setViewingMaterial(null)}
+        />
+      )}
+
+      {viewingMaterial && viewingMaterial.type === 'quiz' && (
+        <QuizViewer
+          questions={viewingMaterial.content}
+          onClose={() => setViewingMaterial(null)}
+        />
+      )}
     </div>
   );
 }

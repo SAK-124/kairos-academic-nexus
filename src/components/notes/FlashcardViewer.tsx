@@ -12,14 +12,12 @@ interface Flashcard {
 interface FlashcardViewerProps {
   flashcards: Flashcard[];
   onClose: () => void;
-  onGenerateMore?: () => void;
   isGenerating?: boolean;
 }
 
 export function FlashcardViewer({ 
   flashcards, 
   onClose, 
-  onGenerateMore,
   isGenerating = false 
 }: FlashcardViewerProps) {
   const [currentIndex, setCurrentIndex] = useState(0);
@@ -141,20 +139,6 @@ export function FlashcardViewer({
             <ChevronRight className="h-5 w-5" />
           </Button>
         </div>
-
-        {/* Generate More Button */}
-        {onGenerateMore && (
-          <div className="flex justify-center mt-6">
-            <Button
-              variant="outline"
-              onClick={onGenerateMore}
-              disabled={isGenerating}
-            >
-              <RotateCw className={cn("h-4 w-4 mr-2", isGenerating && "animate-spin")} />
-              Generate 10 More
-            </Button>
-          </div>
-        )}
 
         {/* Keyboard Hints */}
         <div className="text-center mt-6 text-sm text-muted-foreground">

@@ -47,7 +47,38 @@ export function EditorToolbar({ editor, noteId }: EditorToolbarProps) {
       if (error) throw error;
 
       if (data?.formatted) {
-        editor.commands.setContent(data.formatted);
+        // Convert markdown to HTML for proper rendering
+        const lines = data.formatted.split('\n');
+        let html = '';
+        
+        for (let i = 0; i < lines.length; i++) {
+          const line = lines[i].trim();
+          if (!line) {
+            html += '<p></p>';
+          } else if (line.startsWith('# ')) {
+            html += `<h1>${line.substring(2)}</h1>`;
+          } else if (line.startsWith('## ')) {
+            html += `<h2>${line.substring(3)}</h2>`;
+          } else if (line.startsWith('### ')) {
+            html += `<h3>${line.substring(4)}</h3>`;
+          } else if (line.startsWith('- ') || line.startsWith('* ')) {
+            const nextIsListItem = lines[i + 1]?.trim().match(/^[-*] /);
+            const prevIsListItem = i > 0 && lines[i - 1]?.trim().match(/^[-*] /);
+            if (!prevIsListItem) html += '<ul>';
+            html += `<li>${line.substring(2)}</li>`;
+            if (!nextIsListItem) html += '</ul>';
+          } else if (line.match(/^\d+\. /)) {
+            const nextIsListItem = lines[i + 1]?.trim().match(/^\d+\. /);
+            const prevIsListItem = i > 0 && lines[i - 1]?.trim().match(/^\d+\. /);
+            if (!prevIsListItem) html += '<ol>';
+            html += `<li>${line.replace(/^\d+\. /, '')}</li>`;
+            if (!nextIsListItem) html += '</ol>';
+          } else {
+            html += `<p>${line}</p>`;
+          }
+        }
+        
+        editor.commands.setContent(html);
         toast({
           title: 'Success',
           description: 'Note formatted successfully',

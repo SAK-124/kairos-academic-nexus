@@ -2,6 +2,12 @@ import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Star, Trash2 } from 'lucide-react';
 import { formatDistanceToNow } from 'date-fns';
+import {
+  ContextMenu,
+  ContextMenuContent,
+  ContextMenuItem,
+  ContextMenuTrigger,
+} from '@/components/ui/context-menu';
 
 interface NoteCardProps {
   note: {
@@ -33,11 +39,13 @@ export function NoteCard({ note, onClick, onFavorite, onDelete }: NoteCardProps)
   };
 
   return (
-    <Card
-      onClick={onClick}
-      className="p-4 cursor-pointer transition-all duration-200 hover:scale-105 hover:shadow-lg bg-card/80 backdrop-blur border-border/50 group"
-    >
-      <div className="flex items-start justify-between mb-3">
+    <ContextMenu>
+      <ContextMenuTrigger>
+        <Card
+          onClick={onClick}
+          className="p-4 cursor-pointer transition-all duration-200 hover:scale-105 hover:shadow-lg bg-card/80 backdrop-blur border-border/50 group"
+        >
+          <div className="flex items-start justify-between mb-3">
         <h3 className="text-lg font-semibold line-clamp-2 flex-1 pr-2">
           {note.title}
         </h3>
@@ -85,9 +93,21 @@ export function NoteCard({ note, onClick, onFavorite, onDelete }: NoteCardProps)
         </div>
       )}
 
-      <div className="text-xs text-muted-foreground">
-        {formatDistanceToNow(new Date(note.updated_at), { addSuffix: true })}
-      </div>
-    </Card>
+          <div className="text-xs text-muted-foreground">
+            {formatDistanceToNow(new Date(note.updated_at), { addSuffix: true })}
+          </div>
+        </Card>
+      </ContextMenuTrigger>
+      <ContextMenuContent>
+        <ContextMenuItem onClick={(e) => { e.stopPropagation(); onFavorite(note.id, note.is_favorite); }}>
+          <Star className="w-4 h-4 mr-2" />
+          {note.is_favorite ? 'Remove from favorites' : 'Add to favorites'}
+        </ContextMenuItem>
+        <ContextMenuItem onClick={(e) => { e.stopPropagation(); onDelete(note.id); }}>
+          <Trash2 className="w-4 h-4 mr-2" />
+          Delete note
+        </ContextMenuItem>
+      </ContextMenuContent>
+    </ContextMenu>
   );
 }

@@ -12,17 +12,16 @@ interface AIAssistantPanelProps {
   noteId: string;
   courseId?: string | null;
   folderId?: string | null;
+  onShowFlashcards: (flashcards: any[]) => void;
+  onShowQuiz: (questions: any[]) => void;
+  onGeneratingChange: (isGenerating: boolean) => void;
 }
 
-export function AIAssistantPanel({ noteId, courseId, folderId }: AIAssistantPanelProps) {
+export function AIAssistantPanel({ noteId, courseId, folderId, onShowFlashcards, onShowQuiz, onGeneratingChange }: AIAssistantPanelProps) {
   const [activeAction, setActiveAction] = useState<string | null>(null);
   const [userInput, setUserInput] = useState('');
   const [response, setResponse] = useState('');
-  const [flashcards, setFlashcards] = useState<any[]>([]);
-  const [quizQuestions, setQuizQuestions] = useState<any[]>([]);
   const [isLoading, setIsLoading] = useState(false);
-  const [showFlashcardViewer, setShowFlashcardViewer] = useState(false);
-  const [showQuizViewer, setShowQuizViewer] = useState(false);
   const { toast } = useToast();
 
   const cleanJsonResponse = (response: string): string => {
@@ -54,6 +53,7 @@ export function AIAssistantPanel({ noteId, courseId, folderId }: AIAssistantPane
 
   const processAction = async (actionId: string, refresh = false) => {
     setIsLoading(true);
+    onGeneratingChange(true);
     try {
       const { data: noteData, error: noteError } = await supabase
         .from('notes')
@@ -70,16 +70,7 @@ export function AIAssistantPanel({ noteId, courseId, folderId }: AIAssistantPane
         userInput: userInput,
       };
 
-      if (refresh) {
-        requestBody.refresh = true;
-        if (actionId === 'flashcards') {
-          const existing = flashcards.map(f => `Q: ${f.question}`).join('\n');
-          requestBody.existingContent = existing;
-        } else if (actionId === 'quiz') {
-          const existing = quizQuestions.map(q => q.question).join('\n');
-          requestBody.existingContent = existing;
-        }
-      }
+      // Removed refresh logic for now since we're managing flashcards/quiz at parent level
 
       const { data, error } = await supabase.functions.invoke('note-assistant', {
         body: requestBody,
@@ -101,10 +92,7 @@ export function AIAssistantPanel({ noteId, courseId, folderId }: AIAssistantPane
           }
 
           const newFlashcards = Array.isArray(parsed) ? parsed : parsed.flashcards || [];
-          const combinedFlashcards = refresh ? [...flashcards, ...newFlashcards] : newFlashcards;
           
-          setFlashcards(combinedFlashcards);
-
           // Save to database
           const { data: { user } } = await supabase.auth.getUser();
           if (user) {
@@ -114,11 +102,11 @@ export function AIAssistantPanel({ noteId, courseId, folderId }: AIAssistantPane
               course_id: noteData.course_id || courseId,
               folder_id: noteData.folder_id || folderId,
               type: 'flashcard',
-              content: { flashcards: combinedFlashcards },
+              content: newFlashcards,
             });
           }
 
-          setShowFlashcardViewer(true);
+          onShowFlashcards(newFlashcards);
         } catch (parseError) {
           console.error('Error parsing flashcards:', parseError);
           setResponse(data.response);
@@ -137,10 +125,7 @@ export function AIAssistantPanel({ noteId, courseId, folderId }: AIAssistantPane
           }
 
           const newQuestions = Array.isArray(parsed) ? parsed : parsed.questions || [];
-          const combinedQuestions = refresh ? [...quizQuestions, ...newQuestions] : newQuestions;
           
-          setQuizQuestions(combinedQuestions);
-
           // Save to database
           const { data: { user } } = await supabase.auth.getUser();
           if (user) {
@@ -150,11 +135,11 @@ export function AIAssistantPanel({ noteId, courseId, folderId }: AIAssistantPane
               course_id: noteData.course_id || courseId,
               folder_id: noteData.folder_id || folderId,
               type: 'quiz',
-              content: { questions: combinedQuestions },
+              content: newQuestions,
             });
           }
 
-          setShowQuizViewer(true);
+          onShowQuiz(newQuestions);
         } catch (parseError) {
           console.error('Error parsing quiz:', parseError);
           setResponse(data.response);
@@ -171,12 +156,7 @@ export function AIAssistantPanel({ noteId, courseId, folderId }: AIAssistantPane
       });
     } finally {
       setIsLoading(false);
-    }
-  };
-
-  const handleGenerateMore = async () => {
-    if (activeAction) {
-      await processAction(activeAction, true);
+      onGeneratingChange(false);
     }
   };
 
@@ -240,36 +220,18 @@ export function AIAssistantPanel({ noteId, courseId, folderId }: AIAssistantPane
           </div>
         )}
 
-        {response && !showFlashcardViewer && !showQuizViewer && (
+        {response && (
           <div className="mt-4 p-4 rounded-lg bg-muted/50 border border-border/40">
             <pre className="whitespace-pre-wrap text-sm">{response}</pre>
           </div>
         )}
 
-        {isLoading && !showFlashcardViewer && !showQuizViewer && (
+        {isLoading && (
           <div className="flex items-center justify-center p-8">
             <Loader2 className="w-8 h-8 animate-spin text-primary" />
           </div>
         )}
       </ScrollArea>
-
-      {showFlashcardViewer && (
-        <FlashcardViewer
-          flashcards={flashcards}
-          onClose={() => setShowFlashcardViewer(false)}
-          onGenerateMore={handleGenerateMore}
-          isGenerating={isLoading}
-        />
-      )}
-
-      {showQuizViewer && (
-        <QuizViewer
-          questions={quizQuestions}
-          onClose={() => setShowQuizViewer(false)}
-          onGenerateMore={handleGenerateMore}
-          isGenerating={isLoading}
-        />
-      )}
     </div>
   );
 }

@@ -31,9 +31,14 @@ interface StudyMaterial {
 
 interface NotesSidebarProps {
   onCreateNote: () => void;
+  onCourseClick?: (courseId: string) => void;
+  onFolderClick?: (folderId: string) => void;
+  onViewStudyMaterial?: (material: any) => void;
+  selectedCourseId?: string | null;
+  selectedFolderId?: string | null;
 }
 
-export function NotesSidebar({ onCreateNote }: NotesSidebarProps) {
+export function NotesSidebar({ onCreateNote, onCourseClick, onFolderClick, onViewStudyMaterial, selectedCourseId, selectedFolderId }: NotesSidebarProps) {
   const [courses, setCourses] = useState<Course[]>([]);
   const [folders, setFolders] = useState<FolderItem[]>([]);
   const [studyMaterials, setStudyMaterials] = useState<StudyMaterial[]>([]);
@@ -95,12 +100,8 @@ export function NotesSidebar({ onCreateNote }: NotesSidebarProps) {
     }
   };
 
-  const handleViewStudyMaterial = async (material: StudyMaterial) => {
-    // This will be handled by opening the note and showing the flashcard/quiz viewer
-    toast({
-      title: 'Coming soon',
-      description: 'Study material viewer will open here',
-    });
+  const handleViewStudyMaterial = (material: StudyMaterial) => {
+    onViewStudyMaterial?.(material);
   };
 
   return (
@@ -144,7 +145,10 @@ export function NotesSidebar({ onCreateNote }: NotesSidebarProps) {
               {courses.map((course) => (
                 <button
                   key={course.id}
-                  className="w-full flex items-center gap-2 px-2 py-1.5 text-sm text-left rounded hover:bg-accent/50 transition-colors"
+                  className={`w-full flex items-center gap-2 px-2 py-1.5 text-sm text-left rounded transition-colors ${
+                    selectedCourseId === course.id ? 'bg-accent' : 'hover:bg-accent/50'
+                  }`}
+                  onClick={() => onCourseClick?.(course.id)}
                 >
                   <div
                     className="w-3 h-3 rounded-full flex-shrink-0"
@@ -184,7 +188,10 @@ export function NotesSidebar({ onCreateNote }: NotesSidebarProps) {
               {folders.filter(f => !f.parent_id).map((folder) => (
                 <button
                   key={folder.id}
-                  className="w-full flex items-center gap-2 px-2 py-1.5 text-sm text-left rounded hover:bg-accent/50 transition-colors"
+                  className={`w-full flex items-center gap-2 px-2 py-1.5 text-sm text-left rounded transition-colors ${
+                    selectedFolderId === folder.id ? 'bg-accent' : 'hover:bg-accent/50'
+                  }`}
+                  onClick={() => onFolderClick?.(folder.id)}
                 >
                   <Folder className="w-4 h-4 text-primary" />
                   <span className="flex-1 truncate">{folder.name}</span>

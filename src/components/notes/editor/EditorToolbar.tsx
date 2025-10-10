@@ -12,18 +12,56 @@ import {
   Redo,
   Heading2,
   Link as LinkIcon,
+  Sparkles,
 } from 'lucide-react';
 import type { Editor } from '@tiptap/react';
+import { useState } from 'react';
+import { supabase } from '@/integrations/supabase/client';
+import { useToast } from '@/hooks/use-toast';
 
 interface EditorToolbarProps {
   editor: Editor;
+  noteId: string;
 }
 
-export function EditorToolbar({ editor }: EditorToolbarProps) {
+export function EditorToolbar({ editor, noteId }: EditorToolbarProps) {
+  const [isFormatting, setIsFormatting] = useState(false);
+  const { toast } = useToast();
+
   const addLink = () => {
     const url = window.prompt('Enter URL:');
     if (url) {
       editor.chain().focus().setLink({ href: url }).run();
+    }
+  };
+
+  const handleAutoFormat = async () => {
+    setIsFormatting(true);
+    try {
+      const plainText = editor.getText();
+      
+      const { data, error } = await supabase.functions.invoke('format-note', {
+        body: { noteContent: plainText },
+      });
+
+      if (error) throw error;
+
+      if (data?.formattedContent) {
+        editor.commands.setContent(data.formattedContent);
+        toast({
+          title: 'Success',
+          description: 'Note formatted successfully',
+        });
+      }
+    } catch (error) {
+      console.error('Error formatting note:', error);
+      toast({
+        title: 'Error',
+        description: 'Failed to format note',
+        variant: 'destructive',
+      });
+    } finally {
+      setIsFormatting(false);
     }
   };
 
@@ -101,6 +139,19 @@ export function EditorToolbar({ editor }: EditorToolbarProps) {
 
       <Button variant="ghost" size="icon" onClick={addLink}>
         <LinkIcon className="w-4 h-4" />
+      </Button>
+
+      <Separator orientation="vertical" className="h-6 mx-1" />
+
+      <Button 
+        variant="ghost" 
+        size="sm" 
+        onClick={handleAutoFormat}
+        disabled={isFormatting}
+        className="gap-2"
+      >
+        <Sparkles className="w-4 h-4" />
+        {isFormatting ? 'Formatting...' : 'Auto-Format'}
       </Button>
 
       <Separator orientation="vertical" className="h-6 mx-1" />

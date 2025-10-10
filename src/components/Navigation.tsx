@@ -53,9 +53,22 @@ export const Navigation = ({ user, isAdmin, onAdminClick, onLoginClick }: Naviga
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
+  const handleNotesClick = () => {
+    if (!user) {
+      toast({
+        title: 'Authentication Required',
+        description: 'Please sign in to access your notes',
+      });
+      onLoginClick();
+    } else {
+      navigate('/notes');
+      setMobileMenuOpen(false);
+    }
+  };
+
   const navLinks = [
     { label: "Home", id: "home" },
-    { label: "Notes", route: "/notes" },
+    { label: "Notes", action: handleNotesClick },
     { label: "Features", id: "features" },
     { label: "Pricing", id: "pricing" },
     { label: "FAQs", id: "faqs" },
@@ -92,8 +105,8 @@ const handleWaitlistClick = () => {
             <button
               key={link.label}
               onClick={() => {
-                if (link.route) {
-                  navigate(link.route);
+                if (link.action) {
+                  link.action();
                 } else if (link.id) {
                   scrollToSection(link.id);
                 }
@@ -167,9 +180,8 @@ const handleWaitlistClick = () => {
                     <button
                       key={link.label}
                       onClick={() => {
-                        if (link.route) {
-                          navigate(link.route);
-                          setMobileMenuOpen(false);
+                        if (link.action) {
+                          link.action();
                         } else if (link.id) {
                           scrollToSection(link.id);
                         }

@@ -158,7 +158,11 @@ export default function NoteEditor() {
         </div>
 
         <div className="w-96 border-l border-border/40 p-6">
-          <AIAssistantPanel noteId={id!} />
+          <AIAssistantPanel 
+            noteId={id!} 
+            courseId={note.course_id} 
+            folderId={note.folder_id} 
+          />
         </div>
       </div>
     </div>

@@ -1,72 +1,160 @@
 import { useState } from 'react';
 import { Button } from '@/components/ui/button';
-import { ScrollArea } from '@/components/ui/scroll-area';
 import { Textarea } from '@/components/ui/textarea';
-import { Sparkles, Layers, MessageCircle, ClipboardCheck, Loader2 } from 'lucide-react';
+import { ScrollArea } from '@/components/ui/scroll-area';
+import { Sparkles, FileText, HelpCircle, Lightbulb, GraduationCap, Loader2 } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
+import { FlashcardViewer } from '../FlashcardViewer';
+import { QuizViewer } from '../QuizViewer';
 
 interface AIAssistantPanelProps {
   noteId: string;
+  courseId?: string | null;
+  folderId?: string | null;
 }
 
-export function AIAssistantPanel({ noteId }: AIAssistantPanelProps) {
+export function AIAssistantPanel({ noteId, courseId, folderId }: AIAssistantPanelProps) {
   const [activeAction, setActiveAction] = useState<string | null>(null);
   const [userInput, setUserInput] = useState('');
   const [response, setResponse] = useState('');
+  const [flashcards, setFlashcards] = useState<any[]>([]);
+  const [quizQuestions, setQuizQuestions] = useState<any[]>([]);
   const [isLoading, setIsLoading] = useState(false);
+  const [showFlashcardViewer, setShowFlashcardViewer] = useState(false);
+  const [showQuizViewer, setShowQuizViewer] = useState(false);
   const { toast } = useToast();
 
   const quickActions = [
-    { id: 'summarize', label: 'Summarize', icon: Sparkles, description: 'Get a concise summary' },
-    { id: 'flashcards', label: 'Flashcards', icon: Layers, description: 'Generate study cards' },
-    { id: 'qa', label: 'Ask Question', icon: MessageCircle, description: 'Ask about your notes' },
-    { id: 'quiz', label: 'Practice Quiz', icon: ClipboardCheck, description: 'Test your knowledge' },
+    { id: 'summarize', label: 'Summarize', icon: FileText, description: 'Get a concise summary' },
+    { id: 'flashcards', label: 'Flashcards', icon: GraduationCap, description: 'Create 10 flashcards' },
+    { id: 'qa', label: 'Ask Question', icon: HelpCircle, description: 'Ask about your notes' },
+    { id: 'explain', label: 'Explain', icon: Lightbulb, description: 'Explain a concept' },
+    { id: 'quiz', label: 'Quiz Me', icon: Sparkles, description: 'Create 10 quiz questions' },
   ];
 
-  const handleAction = async (actionId: string) => {
+  const handleAction = (actionId: string) => {
     setActiveAction(actionId);
     setResponse('');
-    
-    if (actionId !== 'qa') {
-      await processAction(actionId);
+    setUserInput('');
+    if (actionId !== 'qa' && actionId !== 'explain') {
+      processAction(actionId);
     }
   };
 
-  const processAction = async (actionId: string) => {
+  const processAction = async (actionId: string, refresh = false) => {
+    setIsLoading(true);
     try {
-      setIsLoading(true);
-      setResponse('');
-
-      // Get note content
-      const { data: note, error: noteError } = await supabase
+      const { data: noteData, error: noteError } = await supabase
         .from('notes')
-        .select('plain_text, content')
+        .select('plain_text, course_id, folder_id')
         .eq('id', noteId)
         .single();
 
       if (noteError) throw noteError;
 
-      const noteContent = note.plain_text || '';
+      const requestBody: any = {
+        noteId,
+        noteContent: noteData.plain_text,
+        action: actionId,
+        userInput: userInput,
+      };
 
-      // Call edge function with streaming
+      if (refresh) {
+        requestBody.refresh = true;
+        if (actionId === 'flashcards') {
+          const existing = flashcards.map(f => `Q: ${f.question}`).join('\n');
+          requestBody.existingContent = existing;
+        } else if (actionId === 'quiz') {
+          const existing = quizQuestions.map(q => q.question).join('\n');
+          requestBody.existingContent = existing;
+        }
+      }
+
       const { data, error } = await supabase.functions.invoke('note-assistant', {
-        body: {
-          noteId,
-          noteContent,
-          action: actionId,
-          userInput: userInput || undefined,
-        },
+        body: requestBody,
       });
 
       if (error) throw error;
 
-      setResponse(data.response);
+      if (actionId === 'flashcards') {
+        try {
+          const parsed = typeof data.response === 'string' ? JSON.parse(data.response) : data.response;
+          
+          if (parsed.error === 'NO_NEW_CONTENT') {
+            toast({
+              title: 'No new content',
+              description: 'There is no new content available to generate more flashcards.',
+            });
+            return;
+          }
+
+          const newFlashcards = Array.isArray(parsed) ? parsed : parsed.flashcards || [];
+          const combinedFlashcards = refresh ? [...flashcards, ...newFlashcards] : newFlashcards;
+          
+          setFlashcards(combinedFlashcards);
+
+          // Save to database
+          const { data: { user } } = await supabase.auth.getUser();
+          if (user) {
+            await supabase.from('study_materials').insert({
+              user_id: user.id,
+              note_id: noteId,
+              course_id: noteData.course_id || courseId,
+              folder_id: noteData.folder_id || folderId,
+              type: 'flashcard',
+              content: { flashcards: combinedFlashcards },
+            });
+          }
+
+          setShowFlashcardViewer(true);
+        } catch (parseError) {
+          console.error('Error parsing flashcards:', parseError);
+          setResponse(data.response);
+        }
+      } else if (actionId === 'quiz') {
+        try {
+          const parsed = typeof data.response === 'string' ? JSON.parse(data.response) : data.response;
+          
+          if (parsed.error === 'NO_NEW_CONTENT') {
+            toast({
+              title: 'No new content',
+              description: 'There is no new content available to generate more questions.',
+            });
+            return;
+          }
+
+          const newQuestions = Array.isArray(parsed) ? parsed : parsed.questions || [];
+          const combinedQuestions = refresh ? [...quizQuestions, ...newQuestions] : newQuestions;
+          
+          setQuizQuestions(combinedQuestions);
+
+          // Save to database
+          const { data: { user } } = await supabase.auth.getUser();
+          if (user) {
+            await supabase.from('study_materials').insert({
+              user_id: user.id,
+              note_id: noteId,
+              course_id: noteData.course_id || courseId,
+              folder_id: noteData.folder_id || folderId,
+              type: 'quiz',
+              content: { questions: combinedQuestions },
+            });
+          }
+
+          setShowQuizViewer(true);
+        } catch (parseError) {
+          console.error('Error parsing quiz:', parseError);
+          setResponse(data.response);
+        }
+      } else {
+        setResponse(data.response);
+      }
     } catch (error: any) {
-      console.error('AI error:', error);
+      console.error('Error in AI assistant:', error);
       toast({
         title: 'Error',
-        description: error.message || 'Failed to process AI request',
+        description: error.message || 'Failed to process request',
         variant: 'destructive',
       });
     } finally {
@@ -74,108 +162,101 @@ export function AIAssistantPanel({ noteId }: AIAssistantPanelProps) {
     }
   };
 
-  const handleSubmitQuestion = async () => {
-    if (!userInput.trim()) return;
-    await processAction('qa');
+  const handleGenerateMore = async () => {
+    if (activeAction) {
+      await processAction(activeAction, true);
+    }
   };
 
   return (
-    <div className="flex flex-col h-full">
-      <div className="mb-4">
-        <h3 className="text-lg font-semibold mb-2 bg-gradient-to-r from-primary to-accent bg-clip-text text-transparent">
+    <div className="w-80 border-l border-border/40 bg-card/50 backdrop-blur flex flex-col">
+      <div className="p-4 border-b border-border/40">
+        <h3 className="font-semibold flex items-center gap-2">
+          <Sparkles className="w-5 h-5 text-primary" />
           AI Assistant
         </h3>
-        <p className="text-sm text-muted-foreground">
-          Get help with your notes using AI
+        <p className="text-sm text-muted-foreground mt-1">
+          Enhance your notes with AI
         </p>
       </div>
 
-      <div className="grid grid-cols-2 gap-2 mb-4">
-        {quickActions.map((action) => {
-          const Icon = action.icon;
-          return (
+      <ScrollArea className="flex-1 p-4">
+        <div className="space-y-2 mb-6">
+          {quickActions.map((action) => (
             <Button
               key={action.id}
+              variant={activeAction === action.id ? 'default' : 'outline'}
+              className="w-full justify-start"
               onClick={() => handleAction(action.id)}
-              variant={activeAction === action.id ? 'secondary' : 'outline'}
-              className="h-auto flex-col gap-2 p-3 hover:scale-105 transition-transform"
+              disabled={isLoading}
             >
-              <Icon className="w-5 h-5" />
-              <div className="text-center">
-                <div className="text-xs font-semibold">{action.label}</div>
-                <div className="text-[10px] text-muted-foreground">{action.description}</div>
+              <action.icon className="w-4 h-4 mr-2" />
+              <div className="flex-1 text-left">
+                <div>{action.label}</div>
+                <div className="text-xs text-muted-foreground">{action.description}</div>
               </div>
             </Button>
-          );
-        })}
-      </div>
-
-      {activeAction && (
-        <div className="flex-1 flex flex-col">
-          {activeAction === 'qa' && !response && (
-            <div className="mb-4">
-              <Textarea
-                placeholder="Ask a question about your notes..."
-                value={userInput}
-                onChange={(e) => setUserInput(e.target.value)}
-                className="min-h-[100px]"
-              />
-              <Button
-                onClick={handleSubmitQuestion}
-                disabled={isLoading || !userInput.trim()}
-                className="w-full mt-2"
-              >
-                {isLoading ? (
-                  <>
-                    <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                    Processing...
-                  </>
-                ) : (
-                  'Ask Question'
-                )}
-              </Button>
-            </div>
-          )}
-
-          <ScrollArea className="flex-1 border border-border/40 rounded-lg p-4 bg-card/50">
-            {isLoading ? (
-              <div className="flex items-center justify-center py-8">
-                <Loader2 className="w-6 h-6 animate-spin text-primary" />
-              </div>
-            ) : response ? (
-              <div className="prose prose-sm max-w-none">
-                <pre className="whitespace-pre-wrap font-sans text-sm">{response}</pre>
-              </div>
-            ) : (
-              <div className="text-center py-8 text-muted-foreground text-sm">
-                Select an action above to get started
-              </div>
-            )}
-          </ScrollArea>
-
-          {response && (
-            <div className="mt-2 flex gap-2">
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => navigator.clipboard.writeText(response)}
-              >
-                Copy
-              </Button>
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => {
-                  setActiveAction(null);
-                  setResponse('');
-                  setUserInput('');
-                }}
-              >
-                Clear
-              </Button>
-            </div>
-          )}
+          ))}
         </div>
+
+        {(activeAction === 'qa' || activeAction === 'explain') && (
+          <div className="space-y-4">
+            <Textarea
+              value={userInput}
+              onChange={(e) => setUserInput(e.target.value)}
+              placeholder={
+                activeAction === 'qa' 
+                  ? 'Ask a question about your notes...'
+                  : 'What concept would you like explained?'
+              }
+              rows={4}
+            />
+            <Button 
+              className="w-full" 
+              onClick={() => processAction(activeAction)}
+              disabled={!userInput.trim() || isLoading}
+            >
+              {isLoading ? (
+                <>
+                  <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                  Processing...
+                </>
+              ) : (
+                'Submit'
+              )}
+            </Button>
+          </div>
+        )}
+
+        {response && !showFlashcardViewer && !showQuizViewer && (
+          <div className="mt-4 p-4 rounded-lg bg-muted/50 border border-border/40">
+            <pre className="whitespace-pre-wrap text-sm">{response}</pre>
+          </div>
+        )}
+
+        {isLoading && !showFlashcardViewer && !showQuizViewer && (
+          <div className="flex items-center justify-center p-8">
+            <Loader2 className="w-8 h-8 animate-spin text-primary" />
+          </div>
+        )}
+      </ScrollArea>
+
+      {showFlashcardViewer && (
+        <FlashcardViewer
+          flashcards={flashcards}
+          onClose={() => setShowFlashcardViewer(false)}
+          onGenerateMore={handleGenerateMore}
+          isGenerating={isLoading}
+        />
+      )}
+
+      {showQuizViewer && (
+        <QuizViewer
+          questions={quizQuestions}
+          onClose={() => setShowQuizViewer(false)}
+          onGenerateMore={handleGenerateMore}
+          isGenerating={isLoading}
+        />
       )}
     </div>
   );

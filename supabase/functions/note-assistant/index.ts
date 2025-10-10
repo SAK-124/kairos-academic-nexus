@@ -12,7 +12,7 @@ serve(async (req) => {
   }
 
   try {
-    const { noteId, noteContent, action, userInput } = await req.json();
+    const { noteId, noteContent, action, userInput, refresh, existingContent } = await req.json();
     const authHeader = req.headers.get('Authorization')!;
     
     const supabaseClient = createClient(
@@ -38,8 +38,13 @@ serve(async (req) => {
         userPrompt = `Summarize these lecture notes:\n\n${noteContent}`;
         break;
       case 'flashcards':
-        systemPrompt = 'You are a flashcard generator. Create 5-8 flashcards in the format:\n\nQ: [question]\nA: [answer]\n\nFocus on key concepts, definitions, and important facts.';
-        userPrompt = `Generate flashcards from these notes:\n\n${noteContent}`;
+        if (refresh && existingContent) {
+          systemPrompt = 'You are a flashcard generator. Create exactly 10 NEW flashcards that are DIFFERENT from the existing ones. Respond with JSON array ONLY. If no new content can be generated, respond with: {"error": "NO_NEW_CONTENT"}. Format: [{"id": "1", "question": "...", "answer": "..."}]';
+          userPrompt = `Existing flashcards:\n${existingContent}\n\nNotes:\n${noteContent}\n\nGenerate 10 NEW different flashcards from these notes.`;
+        } else {
+          systemPrompt = 'You are a flashcard generator. Create exactly 10 flashcards. Respond with JSON array ONLY. Format: [{"id": "1", "question": "...", "answer": "..."}, {"id": "2", "question": "...", "answer": "..."}, ...]';
+          userPrompt = `Generate exactly 10 flashcards from these notes:\n\n${noteContent}`;
+        }
         break;
       case 'qa':
         systemPrompt = 'You are a helpful academic tutor. Answer questions about the student\'s notes clearly and concisely. Use examples when helpful.';
@@ -50,8 +55,13 @@ serve(async (req) => {
         userPrompt = `Explain this concept from my notes:\n\n${userInput}\n\nContext:\n${noteContent}`;
         break;
       case 'quiz':
-        systemPrompt = 'You are a quiz generator. Create 5 multiple-choice questions with 4 options each. Format:\n\nQ1: [question]\nA) [option]\nB) [option]\nC) [option]\nD) [option]\nCorrect: [A/B/C/D]';
-        userPrompt = `Create a practice quiz from these notes:\n\n${noteContent}`;
+        if (refresh && existingContent) {
+          systemPrompt = 'You are a quiz generator. Create exactly 10 NEW multiple-choice questions that are DIFFERENT from existing ones. Respond with JSON array ONLY. If no new content can be generated, respond with: {"error": "NO_NEW_CONTENT"}. Format: [{"id": "1", "question": "...", "options": ["A) ...", "B) ...", "C) ...", "D) ..."], "correct_answer": "A) ..."}]';
+          userPrompt = `Existing questions:\n${existingContent}\n\nNotes:\n${noteContent}\n\nGenerate 10 NEW different quiz questions.`;
+        } else {
+          systemPrompt = 'You are a quiz generator. Create exactly 10 multiple-choice questions with 4 options each. Respond with JSON array ONLY. Format: [{"id": "1", "question": "...", "options": ["A) ...", "B) ...", "C) ...", "D) ..."], "correct_answer": "A) ..."}, ...]';
+          userPrompt = `Create exactly 10 quiz questions from these notes:\n\n${noteContent}`;
+        }
         break;
       default:
         throw new Error('Invalid action');

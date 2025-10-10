@@ -336,6 +336,64 @@ export type Database = {
           },
         ]
       }
+      study_materials: {
+        Row: {
+          content: Json
+          course_id: string | null
+          created_at: string | null
+          folder_id: string | null
+          id: string
+          last_reviewed_at: string | null
+          note_id: string
+          type: string
+          user_id: string
+        }
+        Insert: {
+          content: Json
+          course_id?: string | null
+          created_at?: string | null
+          folder_id?: string | null
+          id?: string
+          last_reviewed_at?: string | null
+          note_id: string
+          type: string
+          user_id: string
+        }
+        Update: {
+          content?: Json
+          course_id?: string | null
+          created_at?: string | null
+          folder_id?: string | null
+          id?: string
+          last_reviewed_at?: string | null
+          note_id?: string
+          type?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "study_materials_course_id_fkey"
+            columns: ["course_id"]
+            isOneToOne: false
+            referencedRelation: "courses"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "study_materials_folder_id_fkey"
+            columns: ["folder_id"]
+            isOneToOne: false
+            referencedRelation: "folders"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "study_materials_note_id_fkey"
+            columns: ["note_id"]
+            isOneToOne: false
+            referencedRelation: "notes"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       user_roles: {
         Row: {
           created_at: string | null

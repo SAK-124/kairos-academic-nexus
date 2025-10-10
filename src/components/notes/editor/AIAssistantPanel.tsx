@@ -25,6 +25,16 @@ export function AIAssistantPanel({ noteId, courseId, folderId }: AIAssistantPane
   const [showQuizViewer, setShowQuizViewer] = useState(false);
   const { toast } = useToast();
 
+  const cleanJsonResponse = (response: string): string => {
+    let cleaned = response.trim();
+    if (cleaned.startsWith('```json')) {
+      cleaned = cleaned.replace(/^```json\s*/, '').replace(/\s*```$/, '');
+    } else if (cleaned.startsWith('```')) {
+      cleaned = cleaned.replace(/^```\s*/, '').replace(/\s*```$/, '');
+    }
+    return cleaned.trim();
+  };
+
   const quickActions = [
     { id: 'summarize', label: 'Summarize', icon: FileText, description: 'Get a concise summary' },
     { id: 'flashcards', label: 'Flashcards', icon: GraduationCap, description: 'Create 10 flashcards' },
@@ -79,7 +89,8 @@ export function AIAssistantPanel({ noteId, courseId, folderId }: AIAssistantPane
 
       if (actionId === 'flashcards') {
         try {
-          const parsed = typeof data.response === 'string' ? JSON.parse(data.response) : data.response;
+          const cleanedResponse = typeof data.response === 'string' ? cleanJsonResponse(data.response) : JSON.stringify(data.response);
+          const parsed = JSON.parse(cleanedResponse);
           
           if (parsed.error === 'NO_NEW_CONTENT') {
             toast({
@@ -114,7 +125,8 @@ export function AIAssistantPanel({ noteId, courseId, folderId }: AIAssistantPane
         }
       } else if (actionId === 'quiz') {
         try {
-          const parsed = typeof data.response === 'string' ? JSON.parse(data.response) : data.response;
+          const cleanedResponse = typeof data.response === 'string' ? cleanJsonResponse(data.response) : JSON.stringify(data.response);
+          const parsed = JSON.parse(cleanedResponse);
           
           if (parsed.error === 'NO_NEW_CONTENT') {
             toast({

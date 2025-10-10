@@ -41,13 +41,13 @@ export function EditorToolbar({ editor, noteId }: EditorToolbarProps) {
       const plainText = editor.getText();
       
       const { data, error } = await supabase.functions.invoke('format-note', {
-        body: { noteContent: plainText },
+        body: { rawText: plainText },
       });
 
       if (error) throw error;
 
-      if (data?.formattedContent) {
-        editor.commands.setContent(data.formattedContent);
+      if (data?.formatted) {
+        editor.commands.setContent(data.formatted);
         toast({
           title: 'Success',
           description: 'Note formatted successfully',

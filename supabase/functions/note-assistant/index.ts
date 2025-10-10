@@ -39,10 +39,10 @@ serve(async (req) => {
         break;
       case 'flashcards':
         if (refresh && existingContent) {
-          systemPrompt = 'You are a flashcard generator. Create exactly 10 NEW flashcards that are DIFFERENT from the existing ones. Respond with JSON array ONLY. If no new content can be generated, respond with: {"error": "NO_NEW_CONTENT"}. Format: [{"id": "1", "question": "...", "answer": "..."}]';
+          systemPrompt = 'You are a flashcard generator. Create exactly 10 NEW flashcards that are DIFFERENT from the existing ones. Respond with ONLY a valid JSON array, no markdown formatting or code blocks. If no new content can be generated, respond with: {"error": "NO_NEW_CONTENT"}. Format: [{"id": "1", "question": "...", "answer": "..."}]';
           userPrompt = `Existing flashcards:\n${existingContent}\n\nNotes:\n${noteContent}\n\nGenerate 10 NEW different flashcards from these notes.`;
         } else {
-          systemPrompt = 'You are a flashcard generator. Create exactly 10 flashcards. Respond with JSON array ONLY. Format: [{"id": "1", "question": "...", "answer": "..."}, {"id": "2", "question": "...", "answer": "..."}, ...]';
+          systemPrompt = 'You are a flashcard generator. Create exactly 10 flashcards. Respond with ONLY a valid JSON array, no markdown formatting or code blocks. Format: [{"id": "1", "question": "...", "answer": "..."}, {"id": "2", "question": "...", "answer": "..."}, ...]';
           userPrompt = `Generate exactly 10 flashcards from these notes:\n\n${noteContent}`;
         }
         break;
@@ -56,10 +56,10 @@ serve(async (req) => {
         break;
       case 'quiz':
         if (refresh && existingContent) {
-          systemPrompt = 'You are a quiz generator. Create exactly 10 NEW multiple-choice questions that are DIFFERENT from existing ones. Respond with JSON array ONLY. If no new content can be generated, respond with: {"error": "NO_NEW_CONTENT"}. Format: [{"id": "1", "question": "...", "options": ["A) ...", "B) ...", "C) ...", "D) ..."], "correct_answer": "A) ..."}]';
+          systemPrompt = 'You are a quiz generator. Create exactly 10 NEW multiple-choice questions that are DIFFERENT from existing ones. Respond with ONLY a valid JSON array, no markdown formatting or code blocks. If no new content can be generated, respond with: {"error": "NO_NEW_CONTENT"}. Format: [{"id": "1", "question": "...", "options": ["A) ...", "B) ...", "C) ...", "D) ..."], "correct_answer": "A) ..."}]';
           userPrompt = `Existing questions:\n${existingContent}\n\nNotes:\n${noteContent}\n\nGenerate 10 NEW different quiz questions.`;
         } else {
-          systemPrompt = 'You are a quiz generator. Create exactly 10 multiple-choice questions with 4 options each. Respond with JSON array ONLY. Format: [{"id": "1", "question": "...", "options": ["A) ...", "B) ...", "C) ...", "D) ..."], "correct_answer": "A) ..."}, ...]';
+          systemPrompt = 'You are a quiz generator. Create exactly 10 multiple-choice questions with 4 options each. Respond with ONLY a valid JSON array, no markdown formatting or code blocks. Format: [{"id": "1", "question": "...", "options": ["A) ...", "B) ...", "C) ...", "D) ..."], "correct_answer": "A) ..."}, ...]';
           userPrompt = `Create exactly 10 quiz questions from these notes:\n\n${noteContent}`;
         }
         break;

@@ -6,6 +6,7 @@ import { ArrowLeft, Star, Loader2 } from 'lucide-react';
 import { TipTapEditor } from '@/components/notes/editor/TipTapEditor';
 import { AIAssistantPanel } from '@/components/notes/editor/AIAssistantPanel';
 import { useToast } from '@/hooks/use-toast';
+import { AnimatedLogo } from '@/components/AnimatedLogo';
 
 export default function NoteEditor() {
   const { id } = useParams();
@@ -113,6 +114,7 @@ export default function NoteEditor() {
         <div className="max-w-7xl mx-auto px-6 py-4">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-4 flex-1">
+              <AnimatedLogo onClick={() => navigate('/')} />
               <Button
                 variant="ghost"
                 size="icon"

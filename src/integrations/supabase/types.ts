@@ -14,6 +14,50 @@ export type Database = {
   }
   public: {
     Tables: {
+      ai_interactions: {
+        Row: {
+          created_at: string | null
+          id: string
+          interaction_type: string
+          model: string | null
+          note_id: string | null
+          prompt: string
+          response: string
+          tokens_used: number | null
+          user_id: string
+        }
+        Insert: {
+          created_at?: string | null
+          id?: string
+          interaction_type: string
+          model?: string | null
+          note_id?: string | null
+          prompt: string
+          response: string
+          tokens_used?: number | null
+          user_id: string
+        }
+        Update: {
+          created_at?: string | null
+          id?: string
+          interaction_type?: string
+          model?: string | null
+          note_id?: string | null
+          prompt?: string
+          response?: string
+          tokens_used?: number | null
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "ai_interactions_note_id_fkey"
+            columns: ["note_id"]
+            isOneToOne: false
+            referencedRelation: "notes"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       animation_settings: {
         Row: {
           id: string
@@ -119,6 +163,36 @@ export type Database = {
         }
         Relationships: []
       }
+      courses: {
+        Row: {
+          code: string | null
+          color: string | null
+          created_at: string | null
+          id: string
+          name: string
+          updated_at: string | null
+          user_id: string
+        }
+        Insert: {
+          code?: string | null
+          color?: string | null
+          created_at?: string | null
+          id?: string
+          name: string
+          updated_at?: string | null
+          user_id: string
+        }
+        Update: {
+          code?: string | null
+          color?: string | null
+          created_at?: string | null
+          id?: string
+          name?: string
+          updated_at?: string | null
+          user_id?: string
+        }
+        Relationships: []
+      }
       early_access_signups: {
         Row: {
           created_at: string | null
@@ -154,6 +228,113 @@ export type Database = {
           university?: string | null
         }
         Relationships: []
+      }
+      folders: {
+        Row: {
+          created_at: string | null
+          id: string
+          name: string
+          parent_id: string | null
+          updated_at: string | null
+          user_id: string
+        }
+        Insert: {
+          created_at?: string | null
+          id?: string
+          name: string
+          parent_id?: string | null
+          updated_at?: string | null
+          user_id: string
+        }
+        Update: {
+          created_at?: string | null
+          id?: string
+          name?: string
+          parent_id?: string | null
+          updated_at?: string | null
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "folders_parent_id_fkey"
+            columns: ["parent_id"]
+            isOneToOne: false
+            referencedRelation: "folders"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      notes: {
+        Row: {
+          character_count: number | null
+          content: Json
+          course_id: string | null
+          created_at: string | null
+          folder_id: string | null
+          id: string
+          is_archived: boolean | null
+          is_favorite: boolean | null
+          last_edited_at: string | null
+          plain_text: string | null
+          plain_text_search: unknown | null
+          tags: string[] | null
+          title: string
+          updated_at: string | null
+          user_id: string
+          word_count: number | null
+        }
+        Insert: {
+          character_count?: number | null
+          content?: Json
+          course_id?: string | null
+          created_at?: string | null
+          folder_id?: string | null
+          id?: string
+          is_archived?: boolean | null
+          is_favorite?: boolean | null
+          last_edited_at?: string | null
+          plain_text?: string | null
+          plain_text_search?: unknown | null
+          tags?: string[] | null
+          title?: string
+          updated_at?: string | null
+          user_id: string
+          word_count?: number | null
+        }
+        Update: {
+          character_count?: number | null
+          content?: Json
+          course_id?: string | null
+          created_at?: string | null
+          folder_id?: string | null
+          id?: string
+          is_archived?: boolean | null
+          is_favorite?: boolean | null
+          last_edited_at?: string | null
+          plain_text?: string | null
+          plain_text_search?: unknown | null
+          tags?: string[] | null
+          title?: string
+          updated_at?: string | null
+          user_id?: string
+          word_count?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "notes_course_id_fkey"
+            columns: ["course_id"]
+            isOneToOne: false
+            referencedRelation: "courses"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "notes_folder_id_fkey"
+            columns: ["folder_id"]
+            isOneToOne: false
+            referencedRelation: "folders"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       user_roles: {
         Row: {

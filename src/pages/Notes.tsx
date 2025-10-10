@@ -30,6 +30,8 @@ export default function Notes() {
   const [selectedCourseId, setSelectedCourseId] = useState<string | null>(null);
   const [selectedFolderId, setSelectedFolderId] = useState<string | null>(null);
   const [viewingMaterial, setViewingMaterial] = useState<any>(null);
+  const [courses, setCourses] = useState<Array<{ id: string; name: string }>>([]);
+  const [folders, setFolders] = useState<Array<{ id: string; name: string }>>([]);
   const navigate = useNavigate();
   const { toast } = useToast();
 
@@ -40,6 +42,7 @@ export default function Notes() {
   useEffect(() => {
     if (user) {
       loadNotes();
+      loadCoursesAndFolders();
     }
   }, [user]);
 
@@ -145,6 +148,75 @@ export default function Notes() {
     }
   };
 
+  const loadCoursesAndFolders = async () => {
+    try {
+      const [coursesRes, foldersRes] = await Promise.all([
+        supabase.from('courses').select('id, name').order('name'),
+        supabase.from('folders').select('id, name').order('name')
+      ]);
+      
+      if (coursesRes.error) throw coursesRes.error;
+      if (foldersRes.error) throw foldersRes.error;
+      
+      setCourses(coursesRes.data || []);
+      setFolders(foldersRes.data || []);
+    } catch (error: any) {
+      console.error('Error loading courses/folders:', error);
+    }
+  };
+
+  const handleMoveToCourse = async (noteId: string, courseId: string | null) => {
+    try {
+      const { error } = await supabase
+        .from('notes')
+        .update({ course_id: courseId })
+        .eq('id', noteId);
+      
+      if (error) throw error;
+      
+      setNotes(notes.map(note => 
+        note.id === noteId ? { ...note, course_id: courseId } : note
+      ));
+      
+      toast({
+        title: 'Success',
+        description: courseId ? 'Note moved to course' : 'Note removed from course',
+      });
+    } catch (error: any) {
+      toast({
+        title: 'Error',
+        description: error.message,
+        variant: 'destructive',
+      });
+    }
+  };
+
+  const handleMoveToFolder = async (noteId: string, folderId: string | null) => {
+    try {
+      const { error } = await supabase
+        .from('notes')
+        .update({ folder_id: folderId })
+        .eq('id', noteId);
+      
+      if (error) throw error;
+      
+      setNotes(notes.map(note => 
+        note.id === noteId ? { ...note, folder_id: folderId } : note
+      ));
+      
+      toast({
+        title: 'Success',
+        description: folderId ? 'Note moved to folder' : 'Note removed from folder',
+      });
+    } catch (error: any) {
+      toast({
+        title: 'Error',
+        description: error.message,
+        variant: 'destructive',
+      });
+    }
+  };
+
   const filteredNotes = notes.filter(note => {
     const matchesSearch = !searchQuery || 
       note.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
@@ -223,6 +295,10 @@ export default function Notes() {
                     onClick={() => navigate(`/notes/${note.id}`)}
                     onFavorite={handleFavorite}
                     onDelete={handleDelete}
+                    courses={courses}
+                    folders={folders}
+                    onMoveToCourse={handleMoveToCourse}
+                    onMoveToFolder={handleMoveToFolder}
                   />
                 ))}
               </div>
@@ -240,14 +316,14 @@ export default function Notes() {
 
       {viewingMaterial && viewingMaterial.type === 'flashcard' && (
         <FlashcardViewer
-          flashcards={viewingMaterial.content}
+          flashcards={Array.isArray(viewingMaterial.content) ? viewingMaterial.content : []}
           onClose={() => setViewingMaterial(null)}
         />
       )}
 
       {viewingMaterial && viewingMaterial.type === 'quiz' && (
         <QuizViewer
-          questions={viewingMaterial.content}
+          questions={Array.isArray(viewingMaterial.content) ? viewingMaterial.content : []}
           onClose={() => setViewingMaterial(null)}
         />
       )}

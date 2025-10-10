@@ -1,11 +1,14 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { Button } from '@/components/ui/button';
 import { ScrollArea } from '@/components/ui/scroll-area';
-import { Plus, FileText, Star, Archive, BookOpen, Folder, GraduationCap } from 'lucide-react';
+import { Plus, FileText, Star, Archive, BookOpen, Folder, GraduationCap, Menu, X, Layers, HelpCircle } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { CourseDialog } from './CourseDialog';
 import { FolderDialog } from './FolderDialog';
 import { useToast } from '@/hooks/use-toast';
+import { useIsMobile } from '@/hooks/use-mobile';
+import { cn } from '@/lib/utils';
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 
 interface Course {
   id: string;
@@ -18,6 +21,7 @@ interface FolderItem {
   id: string;
   name: string;
   parent_id: string | null;
+  course_id: string | null;
 }
 
 interface StudyMaterial {
@@ -25,6 +29,8 @@ interface StudyMaterial {
   type: string;
   note_id: string;
   course_id: string | null;
+  folder_id: string | null;
+  content: any;
   created_at: string;
   notes?: { title: string };
 }
@@ -44,11 +50,17 @@ export function NotesSidebar({ onCreateNote, onCourseClick, onFolderClick, onVie
   const [studyMaterials, setStudyMaterials] = useState<StudyMaterial[]>([]);
   const [showCourseDialog, setShowCourseDialog] = useState(false);
   const [showFolderDialog, setShowFolderDialog] = useState(false);
+  const [preselectedCourseId, setPreselectedCourseId] = useState<string | null>(null);
+  const [isSidebarOpen, setIsSidebarOpen] = useState(true);
   const { toast } = useToast();
+  const isMobile = useIsMobile();
 
   useEffect(() => {
     loadData();
-  }, []);
+    if (isMobile) {
+      setIsSidebarOpen(false);
+    }
+  }, [isMobile]);
 
   const loadData = async () => {
     await Promise.all([
@@ -100,154 +112,340 @@ export function NotesSidebar({ onCreateNote, onCourseClick, onFolderClick, onVie
     }
   };
 
+  // Group study materials by course, folder, and ungrouped
+  const groupedMaterials = useMemo(() => {
+    const groups = {
+      byCourse: {} as Record<string, StudyMaterial[]>,
+      byFolder: {} as Record<string, StudyMaterial[]>,
+      ungrouped: [] as StudyMaterial[]
+    };
+    
+    studyMaterials.forEach(material => {
+      if (material.course_id) {
+        if (!groups.byCourse[material.course_id]) {
+          groups.byCourse[material.course_id] = [];
+        }
+        groups.byCourse[material.course_id].push(material);
+      } else if (material.folder_id) {
+        if (!groups.byFolder[material.folder_id]) {
+          groups.byFolder[material.folder_id] = [];
+        }
+        groups.byFolder[material.folder_id].push(material);
+      } else {
+        groups.ungrouped.push(material);
+      }
+    });
+    
+    return groups;
+  }, [studyMaterials]);
+
+  // Group folders by course
+  const foldersByCourse = useMemo(() => {
+    const grouped = {
+      withCourse: {} as Record<string, FolderItem[]>,
+      standalone: [] as FolderItem[]
+    };
+    
+    folders.forEach(folder => {
+      if (folder.course_id) {
+        if (!grouped.withCourse[folder.course_id]) {
+          grouped.withCourse[folder.course_id] = [];
+        }
+        grouped.withCourse[folder.course_id].push(folder);
+      } else {
+        grouped.standalone.push(folder);
+      }
+    });
+    
+    return grouped;
+  }, [folders]);
+
   const handleViewStudyMaterial = (material: StudyMaterial) => {
     onViewStudyMaterial?.(material);
+    if (isMobile) {
+      setIsSidebarOpen(false);
+    }
+  };
+
+  const handleOpenFolderDialog = (courseId?: string) => {
+    setPreselectedCourseId(courseId || null);
+    setShowFolderDialog(true);
   };
 
   return (
-    <div className="w-64 border-r border-border/40 bg-card/50 backdrop-blur flex flex-col">
-      <div className="p-4">
+    <>
+      {/* Mobile hamburger button */}
+      {isMobile && (
         <Button
-          onClick={onCreateNote}
-          className="w-full bg-gradient-to-r from-primary to-accent"
+          variant="outline"
+          size="icon"
+          onClick={() => setIsSidebarOpen(!isSidebarOpen)}
+          className="fixed top-20 left-4 z-50 md:hidden shadow-lg"
         >
-          <Plus className="w-4 h-4 mr-2" />
-          New Note
+          {isSidebarOpen ? <X className="h-5 w-5" /> : <Menu className="h-5 w-5" />}
         </Button>
-      </div>
-
-      <ScrollArea className="flex-1">
-        <div className="p-4 space-y-2">
-          <SidebarButton icon={FileText} label="All Notes" active />
-          <SidebarButton icon={Star} label="Favorites" />
-          <SidebarButton icon={Archive} label="Archived" />
+      )}
+      
+      {/* Mobile overlay */}
+      {isMobile && isSidebarOpen && (
+        <div 
+          className="fixed inset-0 bg-black/50 z-30"
+          onClick={() => setIsSidebarOpen(false)}
+        />
+      )}
+      
+      <div className={cn(
+        "border-r border-border/40 bg-card/50 backdrop-blur flex flex-col transition-transform duration-300 ease-in-out",
+        isMobile && "fixed inset-y-0 left-0 z-40 w-64",
+        isMobile && !isSidebarOpen && "-translate-x-full",
+        !isMobile && "w-64 relative"
+      )}>
+        <div className="p-4">
+          <Button
+            onClick={onCreateNote}
+            className="w-full bg-gradient-to-r from-primary to-accent"
+          >
+            <Plus className="w-4 h-4 mr-2" />
+            New Note
+          </Button>
         </div>
 
-        {/* Courses Section */}
-        <div className="p-4 border-t border-border/40">
-          <div className="flex items-center justify-between mb-2">
-            <h3 className="text-sm font-semibold text-muted-foreground">
-              COURSES
-            </h3>
-            <Button
-              variant="ghost"
-              size="icon"
-              className="h-6 w-6"
-              onClick={() => setShowCourseDialog(true)}
-            >
-              <Plus className="h-3 w-3" />
-            </Button>
+        <ScrollArea className="flex-1">
+          <div className="p-4 space-y-2">
+            <SidebarButton icon={FileText} label="All Notes" active />
+            <SidebarButton icon={Star} label="Favorites" />
+            <SidebarButton icon={Archive} label="Archived" />
           </div>
-          {courses.length === 0 ? (
-            <p className="text-sm text-muted-foreground py-2">No courses yet</p>
-          ) : (
-            <div className="space-y-1">
-              {courses.map((course) => (
-                <button
-                  key={course.id}
-                  className={`w-full flex items-center gap-2 px-2 py-1.5 text-sm text-left rounded transition-colors ${
-                    selectedCourseId === course.id ? 'bg-accent' : 'hover:bg-accent/50'
-                  }`}
-                  onClick={() => onCourseClick?.(course.id)}
-                >
-                  <div
-                    className="w-3 h-3 rounded-full flex-shrink-0"
-                    style={{ backgroundColor: course.color }}
-                  />
-                  <div className="flex-1 truncate">
-                    <div className="font-medium">{course.name}</div>
-                    {course.code && (
-                      <div className="text-xs text-muted-foreground">{course.code}</div>
-                    )}
-                  </div>
-                </button>
-              ))}
-            </div>
-          )}
-        </div>
 
-        {/* Folders Section */}
-        <div className="p-4 border-t border-border/40">
-          <div className="flex items-center justify-between mb-2">
-            <h3 className="text-sm font-semibold text-muted-foreground">
-              FOLDERS
-            </h3>
-            <Button
-              variant="ghost"
-              size="icon"
-              className="h-6 w-6"
-              onClick={() => setShowFolderDialog(true)}
-            >
-              <Plus className="h-3 w-3" />
-            </Button>
-          </div>
-          {folders.length === 0 ? (
-            <p className="text-sm text-muted-foreground py-2">No folders yet</p>
-          ) : (
-            <div className="space-y-1">
-              {folders.filter(f => !f.parent_id).map((folder) => (
-                <button
-                  key={folder.id}
-                  className={`w-full flex items-center gap-2 px-2 py-1.5 text-sm text-left rounded transition-colors ${
-                    selectedFolderId === folder.id ? 'bg-accent' : 'hover:bg-accent/50'
-                  }`}
-                  onClick={() => onFolderClick?.(folder.id)}
-                >
-                  <Folder className="w-4 h-4 text-primary" />
-                  <span className="flex-1 truncate">{folder.name}</span>
-                </button>
-              ))}
+          {/* Courses Section with Nested Folders */}
+          <div className="p-4 border-t border-border/40">
+            <div className="flex items-center justify-between mb-2">
+              <h3 className="text-sm font-semibold text-muted-foreground">
+                COURSES
+              </h3>
+              <Button
+                variant="ghost"
+                size="icon"
+                className="h-6 w-6"
+                onClick={() => setShowCourseDialog(true)}
+              >
+                <Plus className="h-3 w-3" />
+              </Button>
             </div>
-          )}
-        </div>
-
-        {/* Study Materials Section */}
-        <div className="p-4 border-t border-border/40">
-          <h3 className="text-sm font-semibold text-muted-foreground mb-2">
-            STUDY MATERIALS
-          </h3>
-          {studyMaterials.length === 0 ? (
-            <p className="text-sm text-muted-foreground py-2">
-              Generate flashcards or quizzes to see them here
-            </p>
-          ) : (
-            <div className="space-y-1">
-              {studyMaterials.slice(0, 5).map((material) => (
-                <button
-                  key={material.id}
-                  onClick={() => handleViewStudyMaterial(material)}
-                  className="w-full flex items-center gap-2 px-2 py-1.5 text-sm text-left rounded hover:bg-accent/50 transition-colors"
-                >
-                  {material.type === 'flashcard' ? (
-                    <GraduationCap className="w-4 h-4 text-primary" />
-                  ) : (
-                    <BookOpen className="w-4 h-4 text-primary" />
-                  )}
-                  <div className="flex-1 truncate">
-                    <div className="font-medium capitalize">{material.type}</div>
-                    <div className="text-xs text-muted-foreground truncate">
-                      {material.notes?.title || 'Untitled Note'}
+            {courses.length === 0 ? (
+              <p className="text-sm text-muted-foreground py-2">No courses yet</p>
+            ) : (
+              <div className="space-y-1">
+                {courses.map((course) => (
+                  <Collapsible key={course.id} defaultOpen={selectedCourseId === course.id}>
+                    <div className="space-y-1">
+                      <CollapsibleTrigger asChild>
+                        <button
+                          className={cn(
+                            "w-full flex items-center gap-2 px-2 py-1.5 text-sm text-left rounded transition-colors hover:bg-accent/50",
+                            selectedCourseId === course.id && "bg-accent"
+                          )}
+                          onClick={() => onCourseClick?.(course.id)}
+                        >
+                          <div
+                            className="w-3 h-3 rounded-full flex-shrink-0"
+                            style={{ backgroundColor: course.color }}
+                          />
+                          <div className="flex-1 truncate">
+                            <div className="font-medium">{course.name}</div>
+                            {course.code && (
+                              <div className="text-xs text-muted-foreground">{course.code}</div>
+                            )}
+                          </div>
+                        </button>
+                      </CollapsibleTrigger>
+                      
+                      {/* Folders within this course */}
+                      <CollapsibleContent className="ml-6 space-y-1">
+                        {foldersByCourse.withCourse[course.id]?.map(folder => (
+                          <button
+                            key={folder.id}
+                            className={cn(
+                              "w-full flex items-center gap-2 px-2 py-1.5 text-sm text-left rounded transition-colors hover:bg-accent/50",
+                              selectedFolderId === folder.id && "bg-accent"
+                            )}
+                            onClick={() => onFolderClick?.(folder.id)}
+                          >
+                            <Folder className="w-4 h-4 text-primary flex-shrink-0" />
+                            <span className="flex-1 truncate">{folder.name}</span>
+                          </button>
+                        ))}
+                        
+                        {/* Add folder button for this course */}
+                        <button
+                          onClick={() => handleOpenFolderDialog(course.id)}
+                          className="w-full flex items-center gap-2 px-2 py-1.5 text-sm text-left rounded transition-colors hover:bg-accent/50 text-muted-foreground"
+                        >
+                          <Plus className="w-4 h-4 flex-shrink-0" />
+                          <span className="text-xs">Add Folder</span>
+                        </button>
+                      </CollapsibleContent>
                     </div>
-                  </div>
-                </button>
-              ))}
+                  </Collapsible>
+                ))}
+              </div>
+            )}
+          </div>
+
+          {/* Standalone Folders Section */}
+          {foldersByCourse.standalone.length > 0 && (
+            <div className="p-4 border-t border-border/40">
+              <div className="flex items-center justify-between mb-2">
+                <h3 className="text-sm font-semibold text-muted-foreground">
+                  FOLDERS
+                </h3>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="h-6 w-6"
+                  onClick={() => handleOpenFolderDialog()}
+                >
+                  <Plus className="h-3 w-3" />
+                </Button>
+              </div>
+              <div className="space-y-1">
+                {foldersByCourse.standalone.filter(f => !f.parent_id).map((folder) => (
+                  <button
+                    key={folder.id}
+                    className={cn(
+                      "w-full flex items-center gap-2 px-2 py-1.5 text-sm text-left rounded transition-colors hover:bg-accent/50",
+                      selectedFolderId === folder.id && "bg-accent"
+                    )}
+                    onClick={() => onFolderClick?.(folder.id)}
+                  >
+                    <Folder className="w-4 h-4 text-primary" />
+                    <span className="flex-1 truncate">{folder.name}</span>
+                  </button>
+                ))}
+              </div>
             </div>
           )}
-        </div>
-      </ScrollArea>
 
-      <CourseDialog
-        open={showCourseDialog}
-        onOpenChange={setShowCourseDialog}
-        onSuccess={loadCourses}
-      />
+          {/* Study Materials Section - Organized */}
+          <div className="p-4 border-t border-border/40">
+            <h3 className="text-sm font-semibold text-muted-foreground mb-2">
+              STUDY MATERIALS
+            </h3>
+            {studyMaterials.length === 0 ? (
+              <p className="text-sm text-muted-foreground py-2">
+                Generate flashcards or quizzes to see them here
+              </p>
+            ) : (
+              <div className="space-y-2">
+                {/* Materials by Course */}
+                {courses.map(course => {
+                  const materials = groupedMaterials.byCourse[course.id];
+                  if (!materials || materials.length === 0) return null;
+                  
+                  return (
+                    <Collapsible key={`course-mat-${course.id}`} defaultOpen>
+                      <CollapsibleTrigger className="flex items-center gap-2 w-full px-2 py-1.5 text-sm rounded hover:bg-accent/50 transition-colors">
+                        <BookOpen className="h-4 w-4 text-primary flex-shrink-0" />
+                        <span className="font-medium flex-1 text-left truncate">{course.name}</span>
+                        <span className="text-xs text-muted-foreground">{materials.length}</span>
+                      </CollapsibleTrigger>
+                      <CollapsibleContent className="ml-6 mt-1 space-y-1">
+                        {materials.map(material => (
+                          <button
+                            key={material.id}
+                            onClick={() => handleViewStudyMaterial(material)}
+                            className="w-full flex items-center gap-2 px-2 py-1 text-xs text-left rounded hover:bg-accent/50 transition-colors"
+                          >
+                            {material.type === 'flashcard' ? (
+                              <Layers className="w-3 h-3 text-primary flex-shrink-0" />
+                            ) : (
+                              <HelpCircle className="w-3 h-3 text-primary flex-shrink-0" />
+                            )}
+                            <span className="capitalize truncate">{material.type}</span>
+                          </button>
+                        ))}
+                      </CollapsibleContent>
+                    </Collapsible>
+                  );
+                })}
+                
+                {/* Materials by Folder */}
+                {folders.map(folder => {
+                  const materials = groupedMaterials.byFolder[folder.id];
+                  if (!materials || materials.length === 0) return null;
+                  
+                  return (
+                    <Collapsible key={`folder-mat-${folder.id}`} defaultOpen>
+                      <CollapsibleTrigger className="flex items-center gap-2 w-full px-2 py-1.5 text-sm rounded hover:bg-accent/50 transition-colors">
+                        <Folder className="h-4 w-4 text-primary flex-shrink-0" />
+                        <span className="font-medium flex-1 text-left truncate">{folder.name}</span>
+                        <span className="text-xs text-muted-foreground">{materials.length}</span>
+                      </CollapsibleTrigger>
+                      <CollapsibleContent className="ml-6 mt-1 space-y-1">
+                        {materials.map(material => (
+                          <button
+                            key={material.id}
+                            onClick={() => handleViewStudyMaterial(material)}
+                            className="w-full flex items-center gap-2 px-2 py-1 text-xs text-left rounded hover:bg-accent/50 transition-colors"
+                          >
+                            {material.type === 'flashcard' ? (
+                              <Layers className="w-3 h-3 text-primary flex-shrink-0" />
+                            ) : (
+                              <HelpCircle className="w-3 h-3 text-primary flex-shrink-0" />
+                            )}
+                            <span className="capitalize truncate">{material.type}</span>
+                          </button>
+                        ))}
+                      </CollapsibleContent>
+                    </Collapsible>
+                  );
+                })}
+                
+                {/* Ungrouped Materials */}
+                {groupedMaterials.ungrouped.length > 0 && (
+                  <Collapsible defaultOpen>
+                    <CollapsibleTrigger className="flex items-center gap-2 w-full px-2 py-1.5 text-sm rounded hover:bg-accent/50 transition-colors">
+                      <Archive className="h-4 w-4 text-primary flex-shrink-0" />
+                      <span className="font-medium flex-1 text-left">Uncategorized</span>
+                      <span className="text-xs text-muted-foreground">{groupedMaterials.ungrouped.length}</span>
+                    </CollapsibleTrigger>
+                    <CollapsibleContent className="ml-6 mt-1 space-y-1">
+                      {groupedMaterials.ungrouped.map(material => (
+                        <button
+                          key={material.id}
+                          onClick={() => handleViewStudyMaterial(material)}
+                          className="w-full flex items-center gap-2 px-2 py-1 text-xs text-left rounded hover:bg-accent/50 transition-colors"
+                        >
+                          {material.type === 'flashcard' ? (
+                            <Layers className="w-3 h-3 text-primary flex-shrink-0" />
+                          ) : (
+                            <HelpCircle className="w-3 h-3 text-primary flex-shrink-0" />
+                          )}
+                          <span className="capitalize truncate">{material.type}</span>
+                        </button>
+                      ))}
+                    </CollapsibleContent>
+                  </Collapsible>
+                )}
+              </div>
+            )}
+          </div>
+        </ScrollArea>
 
-      <FolderDialog
-        open={showFolderDialog}
-        onOpenChange={setShowFolderDialog}
-        onSuccess={loadFolders}
-      />
-    </div>
+        <CourseDialog
+          open={showCourseDialog}
+          onOpenChange={setShowCourseDialog}
+          onSuccess={loadCourses}
+        />
+
+        <FolderDialog
+          open={showFolderDialog}
+          onOpenChange={setShowFolderDialog}
+          onSuccess={loadFolders}
+          preselectedCourseId={preselectedCourseId}
+        />
+      </div>
+    </>
   );
 }
 

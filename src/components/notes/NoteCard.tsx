@@ -1,12 +1,16 @@
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { Star, Trash2 } from 'lucide-react';
+import { Star, Trash2, FolderOpen, Folder } from 'lucide-react';
 import { formatDistanceToNow } from 'date-fns';
 import {
   ContextMenu,
   ContextMenuContent,
   ContextMenuItem,
   ContextMenuTrigger,
+  ContextMenuSub,
+  ContextMenuSubTrigger,
+  ContextMenuSubContent,
+  ContextMenuSeparator,
 } from '@/components/ui/context-menu';
 
 interface NoteCardProps {
@@ -21,9 +25,13 @@ interface NoteCardProps {
   onClick: () => void;
   onFavorite: (id: string, isFavorite: boolean) => void;
   onDelete: (id: string) => void;
+  courses: Array<{ id: string; name: string }>;
+  folders: Array<{ id: string; name: string }>;
+  onMoveToCourse: (noteId: string, courseId: string | null) => void;
+  onMoveToFolder: (noteId: string, folderId: string | null) => void;
 }
 
-export function NoteCard({ note, onClick, onFavorite, onDelete }: NoteCardProps) {
+export function NoteCard({ note, onClick, onFavorite, onDelete, courses, folders, onMoveToCourse, onMoveToFolder }: NoteCardProps) {
   const preview = note.plain_text?.slice(0, 150) || 'Empty note';
   const displayTags = note.tags?.slice(0, 3) || [];
   const remainingTags = note.tags?.length > 3 ? note.tags.length - 3 : 0;
@@ -103,7 +111,52 @@ export function NoteCard({ note, onClick, onFavorite, onDelete }: NoteCardProps)
           <Star className="w-4 h-4 mr-2" />
           {note.is_favorite ? 'Remove from favorites' : 'Add to favorites'}
         </ContextMenuItem>
-        <ContextMenuItem onClick={(e) => { e.stopPropagation(); onDelete(note.id); }}>
+        
+        <ContextMenuSeparator />
+        
+        <ContextMenuSub>
+          <ContextMenuSubTrigger>
+            <FolderOpen className="w-4 h-4 mr-2" />
+            Move to Course
+          </ContextMenuSubTrigger>
+          <ContextMenuSubContent>
+            <ContextMenuItem onClick={(e) => { e.stopPropagation(); onMoveToCourse(note.id, null); }}>
+              None
+            </ContextMenuItem>
+            {courses.map(course => (
+              <ContextMenuItem 
+                key={course.id} 
+                onClick={(e) => { e.stopPropagation(); onMoveToCourse(note.id, course.id); }}
+              >
+                {course.name}
+              </ContextMenuItem>
+            ))}
+          </ContextMenuSubContent>
+        </ContextMenuSub>
+        
+        <ContextMenuSub>
+          <ContextMenuSubTrigger>
+            <Folder className="w-4 h-4 mr-2" />
+            Move to Folder
+          </ContextMenuSubTrigger>
+          <ContextMenuSubContent>
+            <ContextMenuItem onClick={(e) => { e.stopPropagation(); onMoveToFolder(note.id, null); }}>
+              None
+            </ContextMenuItem>
+            {folders.map(folder => (
+              <ContextMenuItem 
+                key={folder.id} 
+                onClick={(e) => { e.stopPropagation(); onMoveToFolder(note.id, folder.id); }}
+              >
+                {folder.name}
+              </ContextMenuItem>
+            ))}
+          </ContextMenuSubContent>
+        </ContextMenuSub>
+        
+        <ContextMenuSeparator />
+        
+        <ContextMenuItem onClick={(e) => { e.stopPropagation(); onDelete(note.id); }} className="text-destructive">
           <Trash2 className="w-4 h-4 mr-2" />
           Delete note
         </ContextMenuItem>

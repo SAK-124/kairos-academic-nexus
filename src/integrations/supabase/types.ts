@@ -231,6 +231,7 @@ export type Database = {
       }
       folders: {
         Row: {
+          course_id: string | null
           created_at: string | null
           id: string
           name: string
@@ -239,6 +240,7 @@ export type Database = {
           user_id: string
         }
         Insert: {
+          course_id?: string | null
           created_at?: string | null
           id?: string
           name: string
@@ -247,6 +249,7 @@ export type Database = {
           user_id: string
         }
         Update: {
+          course_id?: string | null
           created_at?: string | null
           id?: string
           name?: string
@@ -255,6 +258,13 @@ export type Database = {
           user_id?: string
         }
         Relationships: [
+          {
+            foreignKeyName: "folders_course_id_fkey"
+            columns: ["course_id"]
+            isOneToOne: false
+            referencedRelation: "courses"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "folders_parent_id_fkey"
             columns: ["parent_id"]

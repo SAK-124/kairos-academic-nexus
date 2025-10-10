@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { ChevronLeft, ChevronRight, X, RotateCw } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { useIsMobile } from '@/hooks/use-mobile';
 
 interface Flashcard {
   id: string;
@@ -20,13 +21,31 @@ export function FlashcardViewer({
   onClose, 
   isGenerating = false 
 }: FlashcardViewerProps) {
+  // Ensure flashcards is always an array
+  const flashcardsArray = Array.isArray(flashcards) ? flashcards : [];
+  
   const [currentIndex, setCurrentIndex] = useState(0);
   const [isFlipped, setIsFlipped] = useState(false);
+  const [touchStart, setTouchStart] = useState(0);
+  const [touchEnd, setTouchEnd] = useState(0);
+  const isMobile = useIsMobile();
 
-  const currentCard = flashcards[currentIndex];
+  // Guard clause for empty flashcards
+  if (flashcardsArray.length === 0) {
+    return (
+      <div className="fixed inset-0 z-50 bg-background/95 backdrop-blur-sm flex items-center justify-center p-4">
+        <div className="bg-card rounded-lg border p-8 shadow-lg text-center">
+          <p className="text-muted-foreground mb-4">No flashcards available</p>
+          <Button onClick={onClose}>Close</Button>
+        </div>
+      </div>
+    );
+  }
+
+  const currentCard = flashcardsArray[currentIndex];
 
   const handleNext = () => {
-    if (currentIndex < flashcards.length - 1) {
+    if (currentIndex < flashcardsArray.length - 1) {
       setCurrentIndex(currentIndex + 1);
       setIsFlipped(false);
     }
@@ -43,6 +62,26 @@ export function FlashcardViewer({
     setIsFlipped(!isFlipped);
   };
 
+  // Touch gesture handlers for mobile
+  const handleTouchStart = (e: React.TouchEvent) => {
+    setTouchStart(e.touches[0].clientX);
+  };
+
+  const handleTouchMove = (e: React.TouchEvent) => {
+    setTouchEnd(e.touches[0].clientX);
+  };
+
+  const handleTouchEnd = () => {
+    if (touchStart - touchEnd > 75) {
+      // Swipe left = next
+      handleNext();
+    }
+    if (touchEnd - touchStart > 75) {
+      // Swipe right = previous
+      handlePrevious();
+    }
+  };
+
   // Keyboard navigation
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -57,11 +96,17 @@ export function FlashcardViewer({
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [currentIndex, flashcards.length]);
+  }, [currentIndex, flashcardsArray.length]);
 
   return (
-    <div className="fixed inset-0 z-50 bg-background/95 backdrop-blur-sm flex items-center justify-center p-4">
-      <div className="w-full max-w-4xl h-[600px] relative">
+    <div className={cn(
+      "fixed inset-0 z-50 bg-background/95 backdrop-blur-sm flex items-center justify-center",
+      isMobile ? "p-2" : "p-4"
+    )}>
+      <div className={cn(
+        "w-full relative",
+        isMobile ? "max-w-full h-auto" : "max-w-4xl h-[600px]"
+      )}>
         {/* Close Button */}
         <Button
           variant="ghost"
@@ -73,14 +118,25 @@ export function FlashcardViewer({
         </Button>
 
         {/* Progress Indicator */}
-        <div className="text-center mb-8">
-          <p className="text-muted-foreground">
-            Card {currentIndex + 1} of {flashcards.length}
+        <div className={cn("text-center", isMobile ? "mb-4" : "mb-8")}>
+          <p className={cn(
+            "text-muted-foreground",
+            isMobile ? "text-sm" : "text-base"
+          )}>
+            Card {currentIndex + 1} of {flashcardsArray.length}
           </p>
         </div>
 
         {/* Flashcard Container */}
-        <div className="relative w-full h-[400px] perspective-1000">
+        <div 
+          className={cn(
+            "relative w-full perspective-1000",
+            isMobile ? "h-[300px]" : "h-[400px]"
+          )}
+          onTouchStart={handleTouchStart}
+          onTouchMove={handleTouchMove}
+          onTouchEnd={handleTouchEnd}
+        >
           <div
             className={cn(
               "relative w-full h-full transition-transform duration-500 transform-style-3d cursor-pointer",
@@ -90,9 +146,15 @@ export function FlashcardViewer({
           >
             {/* Front Side */}
             <div className="absolute inset-0 backface-hidden">
-              <div className="w-full h-full rounded-lg border-2 border-primary bg-card p-8 flex flex-col items-center justify-center shadow-lg">
+              <div className={cn(
+                "w-full h-full rounded-lg border-2 border-primary bg-card flex flex-col items-center justify-center shadow-lg",
+                isMobile ? "p-4" : "p-8"
+              )}>
                 <p className="text-sm text-muted-foreground mb-4">Question</p>
-                <p className="text-2xl text-center font-medium">
+                <p className={cn(
+                  "text-center font-medium",
+                  isMobile ? "text-lg" : "text-2xl"
+                )}>
                   {currentCard.question}
                 </p>
               </div>
@@ -100,9 +162,15 @@ export function FlashcardViewer({
 
             {/* Back Side */}
             <div className="absolute inset-0 backface-hidden rotate-y-180">
-              <div className="w-full h-full rounded-lg border-2 border-accent bg-card p-8 flex flex-col items-center justify-center shadow-lg">
+              <div className={cn(
+                "w-full h-full rounded-lg border-2 border-accent bg-card flex flex-col items-center justify-center shadow-lg",
+                isMobile ? "p-4" : "p-8"
+              )}>
                 <p className="text-sm text-muted-foreground mb-4">Answer</p>
-                <p className="text-2xl text-center font-medium">
+                <p className={cn(
+                  "text-center font-medium",
+                  isMobile ? "text-lg" : "text-2xl"
+                )}>
                   {currentCard.answer}
                 </p>
               </div>
@@ -111,7 +179,10 @@ export function FlashcardViewer({
         </div>
 
         {/* Navigation Controls */}
-        <div className="flex items-center justify-center gap-4 mt-8">
+        <div className={cn(
+          "flex items-center justify-center gap-4",
+          isMobile ? "mt-4" : "mt-8"
+        )}>
           <Button
             variant="outline"
             size="icon"
@@ -123,9 +194,9 @@ export function FlashcardViewer({
 
           <Button
             variant="default"
-            size="lg"
+            size={isMobile ? "default" : "lg"}
             onClick={handleFlip}
-            className="min-w-[120px]"
+            className={isMobile ? "min-w-[100px]" : "min-w-[120px]"}
           >
             {isFlipped ? 'Show Question' : 'Flip Card'}
           </Button>
@@ -134,15 +205,20 @@ export function FlashcardViewer({
             variant="outline"
             size="icon"
             onClick={handleNext}
-            disabled={currentIndex === flashcards.length - 1}
+            disabled={currentIndex === flashcardsArray.length - 1}
           >
             <ChevronRight className="h-5 w-5" />
           </Button>
         </div>
 
-        {/* Keyboard Hints */}
-        <div className="text-center mt-6 text-sm text-muted-foreground">
-          Use ← → arrow keys to navigate • Space to flip • Esc to exit
+        {/* Keyboard/Touch Hints */}
+        <div className={cn(
+          "text-center text-muted-foreground",
+          isMobile ? "mt-4 text-xs" : "mt-6 text-sm"
+        )}>
+          {isMobile 
+            ? "Swipe left/right or tap arrows • Tap card to flip" 
+            : "Use ← → arrow keys to navigate • Space to flip • Esc to exit"}
         </div>
       </div>
 

@@ -1,7 +1,8 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { X, RotateCw, CheckCircle2, XCircle } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { useIsMobile } from '@/hooks/use-mobile';
 
 interface QuizQuestion {
   id: string;
@@ -23,12 +24,27 @@ export function QuizViewer({
   onGenerateMore,
   isGenerating = false 
 }: QuizViewerProps) {
+  // Ensure questions is always an array
+  const questionsArray = Array.isArray(questions) ? questions : [];
+  
   const [currentIndex, setCurrentIndex] = useState(0);
   const [selectedAnswers, setSelectedAnswers] = useState<Record<string, string>>({});
   const [showResults, setShowResults] = useState(false);
 
-  const currentQuestion = questions[currentIndex];
-  const allAnswered = questions.every(q => selectedAnswers[q.id]);
+  // Guard clause for empty questions
+  if (questionsArray.length === 0) {
+    return (
+      <div className="fixed inset-0 z-50 bg-background/95 backdrop-blur-sm flex items-center justify-center p-4">
+        <div className="bg-card rounded-lg border p-8 shadow-lg text-center">
+          <p className="text-muted-foreground mb-4">No questions available</p>
+          <Button onClick={onClose}>Close</Button>
+        </div>
+      </div>
+    );
+  }
+
+  const currentQuestion = questionsArray[currentIndex];
+  const allAnswered = questionsArray.every(q => selectedAnswers[q.id]);
 
   const handleSelectAnswer = (answer: string) => {
     if (!showResults) {
@@ -40,7 +56,7 @@ export function QuizViewer({
   };
 
   const handleNext = () => {
-    if (currentIndex < questions.length - 1) {
+    if (currentIndex < questionsArray.length - 1) {
       setCurrentIndex(currentIndex + 1);
     }
   };
@@ -58,24 +74,40 @@ export function QuizViewer({
 
   const calculateScore = () => {
     let correct = 0;
-    questions.forEach(q => {
+    questionsArray.forEach(q => {
       if (selectedAnswers[q.id] === q.correct_answer) {
         correct++;
       }
     });
-    return { correct, total: questions.length };
+    return { correct, total: questionsArray.length };
   };
 
   const isCorrect = (questionId: string) => {
-    const question = questions.find(q => q.id === questionId);
+    const question = questionsArray.find(q => q.id === questionId);
     return selectedAnswers[questionId] === question?.correct_answer;
   };
 
   const score = showResults ? calculateScore() : null;
+  const isMobile = useIsMobile();
+
+  // Keyboard navigation
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') onClose();
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, []);
 
   return (
-    <div className="fixed inset-0 z-50 bg-background/95 backdrop-blur-sm flex items-center justify-center p-4">
-      <div className="w-full max-w-4xl max-h-[90vh] overflow-y-auto">
+    <div className={cn(
+      "fixed inset-0 z-50 bg-background/95 backdrop-blur-sm flex items-center justify-center",
+      isMobile ? "p-2" : "p-4"
+    )}>
+      <div className={cn(
+        "w-full max-h-[90vh] overflow-y-auto",
+        isMobile ? "max-w-full" : "max-w-4xl"
+      )}>
         {/* Close Button */}
         <Button
           variant="ghost"
@@ -86,11 +118,17 @@ export function QuizViewer({
           <X className="h-5 w-5" />
         </Button>
 
-        <div className="bg-card rounded-lg border p-8 shadow-lg">
+        <div className={cn(
+          "bg-card rounded-lg border shadow-lg",
+          isMobile ? "p-4" : "p-8"
+        )}>
           {/* Results Screen */}
           {showResults && score && (
             <div className="text-center mb-8">
-              <h2 className="text-3xl font-bold mb-4">Quiz Results</h2>
+              <h2 className={cn(
+                "font-bold mb-4",
+                isMobile ? "text-2xl" : "text-3xl"
+              )}>Quiz Results</h2>
               <div className="text-5xl font-bold text-primary mb-2">
                 {score.correct}/{score.total}
               </div>
@@ -104,14 +142,17 @@ export function QuizViewer({
           {!showResults && (
             <div className="text-center mb-6">
               <p className="text-muted-foreground">
-                Question {currentIndex + 1} of {questions.length}
+                Question {currentIndex + 1} of {questionsArray.length}
               </p>
             </div>
           )}
 
           {/* Question */}
-          <div className="mb-8">
-            <h3 className="text-2xl font-semibold mb-6">
+          <div className={cn("mb-8", isMobile && "mb-4")}>
+            <h3 className={cn(
+              "font-semibold mb-6",
+              isMobile ? "text-lg" : "text-2xl"
+            )}>
               {currentQuestion.question}
             </h3>
 
@@ -170,7 +211,7 @@ export function QuizViewer({
                 Previous
               </Button>
 
-              {currentIndex === questions.length - 1 ? (
+              {currentIndex === questionsArray.length - 1 ? (
                 <Button
                   onClick={handleSubmit}
                   disabled={!allAnswered}
@@ -213,7 +254,7 @@ export function QuizViewer({
               <Button
                 variant="outline"
                 onClick={handleNext}
-                disabled={currentIndex === questions.length - 1}
+                disabled={currentIndex === questionsArray.length - 1}
               >
                 Next
               </Button>

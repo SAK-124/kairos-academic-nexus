@@ -25,24 +25,36 @@ interface Folder {
   parent_id: string | null;
 }
 
+interface Course {
+  id: string;
+  name: string;
+}
+
 interface FolderDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   onSuccess: () => void;
+  preselectedCourseId?: string | null;
 }
 
-export function FolderDialog({ open, onOpenChange, onSuccess }: FolderDialogProps) {
+export function FolderDialog({ open, onOpenChange, onSuccess, preselectedCourseId }: FolderDialogProps) {
   const [name, setName] = useState('');
   const [parentId, setParentId] = useState<string | null>(null);
+  const [courseId, setCourseId] = useState<string | null>(preselectedCourseId || null);
   const [folders, setFolders] = useState<Folder[]>([]);
+  const [courses, setCourses] = useState<Course[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const { toast } = useToast();
 
   useEffect(() => {
     if (open) {
       loadFolders();
+      loadCourses();
+      if (preselectedCourseId) {
+        setCourseId(preselectedCourseId);
+      }
     }
-  }, [open]);
+  }, [open, preselectedCourseId]);
 
   const loadFolders = async () => {
     try {
@@ -55,6 +67,20 @@ export function FolderDialog({ open, onOpenChange, onSuccess }: FolderDialogProp
       setFolders(data || []);
     } catch (error) {
       console.error('Error loading folders:', error);
+    }
+  };
+
+  const loadCourses = async () => {
+    try {
+      const { data, error } = await supabase
+        .from('courses')
+        .select('id, name')
+        .order('name');
+
+      if (error) throw error;
+      setCourses(data || []);
+    } catch (error) {
+      console.error('Error loading courses:', error);
     }
   };
 
@@ -71,6 +97,7 @@ export function FolderDialog({ open, onOpenChange, onSuccess }: FolderDialogProp
         user_id: user.id,
         name: name.trim(),
         parent_id: parentId,
+        course_id: courseId,
       });
 
       if (error) throw error;
@@ -82,6 +109,7 @@ export function FolderDialog({ open, onOpenChange, onSuccess }: FolderDialogProp
 
       setName('');
       setParentId(null);
+      setCourseId(null);
       onOpenChange(false);
       onSuccess();
     } catch (error) {
@@ -113,6 +141,22 @@ export function FolderDialog({ open, onOpenChange, onSuccess }: FolderDialogProp
                 placeholder="e.g., Lecture Notes"
                 required
               />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="course">Course (Optional)</Label>
+              <Select value={courseId || 'none'} onValueChange={(v) => setCourseId(v === 'none' ? null : v)}>
+                <SelectTrigger id="course">
+                  <SelectValue placeholder="Select a course" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="none">No Course</SelectItem>
+                  {courses.map((course) => (
+                    <SelectItem key={course.id} value={course.id}>
+                      {course.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
             </div>
             <div className="space-y-2">
               <Label htmlFor="parent-folder">Parent Folder (Optional)</Label>

@@ -5,7 +5,6 @@ import { ScrollArea } from '@/components/ui/scroll-area';
 import { Sparkles, FileText, HelpCircle, Lightbulb, GraduationCap, Loader2, RefreshCcw, History } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
-import { GeminiClient, type GeminiMessage } from '@/integrations/gemini/client';
 import { MarkdownRenderer } from '@/components/MarkdownRenderer';
 import type { FlashcardItem, QuizQuestionItem } from '@/types/ai';
 
@@ -66,73 +65,6 @@ export function AIAssistantPanel({ noteId, courseId, folderId, onShowFlashcards,
     }
   };
 
-  const buildMessages = (actionId: string, noteContent: string): GeminiMessage[] => {
-    const baseSystem = 'You are Kairos, an academic assistant who writes in clear, student-friendly language.';
-    switch (actionId) {
-      case 'summarize':
-        return [
-          { role: 'system' as const, content: `${baseSystem} Provide structured markdown.` },
-          {
-            role: 'user' as const,
-            content: `Summarize the following note in 4-6 bullet points and a "Key Takeaway" section. Use markdown headings.
-
-${noteContent}`,
-          },
-        ];
-      case 'qa':
-        return [
-          { role: 'system' as const, content: `${baseSystem} Answer based only on the provided note.` },
-          {
-            role: 'user' as const,
-            content: `Here is the note content:
-${noteContent}
-
-Question: ${userInput}. Provide a helpful answer with supporting points.`,
-          },
-        ];
-      case 'explain':
-        return [
-          { role: 'system' as const, content: `${baseSystem} Teach with analogies when useful.` },
-          {
-            role: 'user' as const,
-            content: `Explain the following concept from the note so that a busy college student can understand it quickly:
-${userInput}
-
-Here is the relevant note context:
-${noteContent}`,
-          },
-        ];
-      case 'flashcards':
-        return [
-          { role: 'system' as const, content: `${baseSystem} Return strict JSON only.` },
-          {
-            role: 'user' as const,
-            content: `Create 10 spaced-repetition friendly flashcards from this note. Return JSON like {
-  "flashcards": [
-    { "question": "...", "answer": "..." }
-  ]
-}. Questions should be concise and answers should be short.`,
-          },
-          { role: 'user' as const, content: noteContent },
-        ];
-      case 'quiz':
-        return [
-          { role: 'system' as const, content: `${baseSystem} Return strict JSON only.` },
-          {
-            role: 'user' as const,
-            content: `Generate 10 quiz questions with "question", "answer", and "choices" (array with the correct answer included). Return JSON like {
-  "questions": [
-    { "question": "...", "answer": "...", "choices": ["..."] }
-  ]
-}.`,
-          },
-          { role: 'user' as const, content: noteContent },
-        ];
-      default:
-        return [];
-    }
-  };
-
   const processAction = async (actionId: string, refresh = false) => {
     if (!noteId) return;
 
@@ -155,19 +87,32 @@ ${noteContent}`,
       if (noteError) throw noteError;
 
       const noteContent = noteData?.plain_text || 'No note content provided yet.';
-      const messages = buildMessages(actionId, noteContent);
+      
+      // Call the edge function with the action
+      const { data: result, error: functionError } = await supabase.functions.invoke('note-assistant', {
+        body: {
+          noteId,
+          noteContent,
+          action: actionId,
+          userInput: actionId === 'qa' || actionId === 'explain' ? userInput : undefined,
+        }
+      });
 
-      if (!messages.length) {
-        throw new Error('Unable to process this request.');
-      }
+      if (functionError) throw functionError;
+      if (!result) throw new Error('No response from AI');
+
+      const aiResponse = result.response;
 
       if (actionId === 'flashcards') {
-        const result = await GeminiClient.json(messages);
-        const flashcards = Array.isArray(result)
-          ? result
-          : Array.isArray(result?.flashcards)
-            ? result.flashcards
-            : [];
+        let flashcards;
+        try {
+          flashcards = JSON.parse(aiResponse);
+          if (!Array.isArray(flashcards)) {
+            flashcards = flashcards?.flashcards || [];
+          }
+        } catch {
+          throw new Error('Failed to parse flashcards response');
+        }
 
         if (!flashcards.length) {
           toast({
@@ -195,12 +140,15 @@ ${noteContent}`,
       }
 
       if (actionId === 'quiz') {
-        const result = await GeminiClient.json(messages);
-        const questions = Array.isArray(result)
-          ? result
-          : Array.isArray(result?.questions)
-            ? result.questions
-            : [];
+        let questions;
+        try {
+          questions = JSON.parse(aiResponse);
+          if (!Array.isArray(questions)) {
+            questions = questions?.questions || [];
+          }
+        } catch {
+          throw new Error('Failed to parse quiz response');
+        }
 
         if (!questions.length) {
           toast({
@@ -227,8 +175,7 @@ ${noteContent}`,
         return;
       }
 
-      const textResponse = await GeminiClient.chat(messages);
-      const sanitized = textResponse?.trim() || 'No response generated yet.';
+      const sanitized = aiResponse?.trim() || 'No response generated yet.';
       setCachedResponse(actionId, cacheKey, sanitized);
     } catch (error: any) {
       console.error('Error in AI assistant:', error);

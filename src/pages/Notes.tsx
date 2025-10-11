@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import type { User } from '@supabase/supabase-js';
 import { supabase } from '@/integrations/supabase/client';
@@ -11,134 +11,139 @@ import { useToast } from '@/hooks/use-toast';
 import { AnimatedLogo } from '@/components/AnimatedLogo';
 import { FlashcardViewer } from '@/components/notes/FlashcardViewer';
 import { QuizViewer } from '@/components/notes/QuizViewer';
-
-interface Note {
-  id: string;
-  title: string;
-  plain_text: string;
-  course_id: string | null;
-  folder_id: string | null;
-  tags: string[];
-  is_favorite: boolean;
-  updated_at: string;
-}
+import { useNotesWorkspace } from '@/hooks/useNotesWorkspace';
+import { useLocalStorage } from '@/hooks/useLocalStorage';
 
 export default function Notes() {
   const [user, setUser] = useState<User | null>(null);
-  const [notes, setNotes] = useState<Note[]>([]);
-  const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedCourseId, setSelectedCourseId] = useState<string | null>(null);
   const [selectedFolderId, setSelectedFolderId] = useState<string | null>(null);
   const [viewingMaterial, setViewingMaterial] = useState<StudyMaterial | null>(null);
-  const [courses, setCourses] = useState<Array<{ id: string; name: string }>>([]);
-  const [folders, setFolders] = useState<Array<{ id: string; name: string }>>([]);
+  const [draggingId, setDraggingId] = useState<string | null>(null);
   const navigate = useNavigate();
   const { toast } = useToast();
 
-  const handleToastError = (title: string, error: unknown) => {
-    const description = error instanceof Error ? error.message : 'An unexpected error occurred.';
-    toast({
-      title,
-      description,
-      variant: 'destructive',
-    });
-  };
+  const userId = user?.id;
+  const [noteOrder, setNoteOrder] = useLocalStorage<string[]>(
+    `notes-order-${userId ?? 'guest'}`,
+    []
+  );
+
+  const {
+    notes,
+    courses,
+    folders,
+    isLoading,
+    createNote,
+    toggleFavorite,
+    deleteNote,
+    moveToCourse,
+    moveToFolder,
+  } = useNotesWorkspace({ userId });
+
+  const handleToastError = useCallback(
+    (title: string, error: unknown) => {
+      const description = error instanceof Error ? error.message : 'An unexpected error occurred.';
+      toast({
+        title,
+        description,
+        variant: 'destructive',
+      });
+    },
+    [toast]
+  );
 
   useEffect(() => {
-    checkAuth();
+    void checkAuth();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   useEffect(() => {
-    if (user) {
-      loadNotes();
-      loadCoursesAndFolders();
-    }
-  }, [user]);
+    setNoteOrder((prev) => {
+      if (!notes.length) return [];
+      const noteIds = notes.map((note) => note.id);
+      const filtered = prev.filter((id) => noteIds.includes(id));
+      const missing = noteIds.filter((id) => !filtered.includes(id));
+      const combined = [...filtered, ...missing];
+      if (combined.length === prev.length && combined.every((id, idx) => prev[idx] === id)) {
+        return prev;
+      }
+      return combined;
+    });
+  }, [notes, setNoteOrder]);
 
-  const checkAuth = async () => {
-    const { data: { session } } = await supabase.auth.getSession();
+  const orderedNotes = useMemo(() => {
+    if (!noteOrder.length) return notes;
+    const orderMap = new Map(noteOrder.map((id, index) => [id, index]));
+    return [...notes].sort((a, b) => {
+      const aIdx = orderMap.get(a.id);
+      const bIdx = orderMap.get(b.id);
+      if (aIdx === undefined && bIdx === undefined) {
+        const aTime = a.updated_at ? new Date(a.updated_at).getTime() : 0;
+        const bTime = b.updated_at ? new Date(b.updated_at).getTime() : 0;
+        return bTime - aTime;
+      }
+      if (aIdx === undefined) return 1;
+      if (bIdx === undefined) return -1;
+      return aIdx - bIdx;
+    });
+  }, [noteOrder, notes]);
+
+  const filteredNotes = useMemo(() => {
+    return orderedNotes.filter((note) => {
+      const matchesSearch = !searchQuery ||
+        note.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        note.plain_text?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        note.tags?.some((tag) => tag.toLowerCase().includes(searchQuery.toLowerCase()));
+      const matchesCourse = !selectedCourseId || note.course_id === selectedCourseId;
+      const matchesFolder = !selectedFolderId || note.folder_id === selectedFolderId;
+      return matchesSearch && matchesCourse && matchesFolder;
+    });
+  }, [orderedNotes, searchQuery, selectedCourseId, selectedFolderId]);
+
+  async function checkAuth() {
+    const {
+      data: { session },
+    } = await supabase.auth.getSession();
     if (!session) {
       navigate('/?auth=true');
     } else {
       setUser(session.user);
     }
-  };
+  }
 
-  const loadNotes = async () => {
-    if (!user) return;
+  const handleCreateNote = useCallback(async () => {
+    if (!userId) return;
     try {
-      setLoading(true);
-      const { data, error } = await supabase
-        .from('notes')
-        .select('*')
-        .eq('user_id', user.id)
-        .order('updated_at', { ascending: false });
-
-      if (error) throw error;
-      setNotes(data || []);
-    } catch (error) {
-      handleToastError('Error loading notes', error);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const handleCreateNote = async () => {
-    if (!user) return;
-    
-    try {
-      const { data, error } = await supabase
-        .from('notes')
-        .insert({
-          user_id: user.id,
-          title: 'Untitled Note',
-          content: {},
-          plain_text: '',
-        })
-        .select()
-        .single();
-
-      if (error) throw error;
-      navigate(`/notes/${data.id}`);
+      const note = await createNote();
+      if (note) {
+        navigate(`/notes/${note.id}`);
+      }
     } catch (error) {
       handleToastError('Error creating note', error);
     }
-  };
+  }, [createNote, handleToastError, navigate, userId]);
 
-  const handleSearch = (query: string) => {
+  const handleSearch = useCallback((query: string) => {
     setSearchQuery(query);
-  };
+  }, []);
 
-  const handleFavorite = async (noteId: string, isFavorite: boolean) => {
-    if (!user) return;
+  const handleFavorite = useCallback(async (noteId: string, isFavorite: boolean) => {
+    if (!userId) return;
     try {
-      const { error } = await supabase
-        .from('notes')
-        .update({ is_favorite: !isFavorite })
-        .eq('id', noteId)
-        .eq('user_id', user.id);
-
-      if (error) throw error;
-      loadNotes();
+      await toggleFavorite({ noteId, isFavorite });
     } catch (error) {
       handleToastError('Error updating note', error);
     }
-  };
+  }, [handleToastError, toggleFavorite, userId]);
 
-  const handleDelete = async (noteId: string) => {
-    if (!user) return;
+  const handleDelete = useCallback(async (noteId: string) => {
+    if (!userId) return;
     if (!confirm('Are you sure you want to delete this note?')) return;
 
     try {
-      const { error } = await supabase
-        .from('notes')
-        .delete()
-        .eq('id', noteId)
-        .eq('user_id', user.id);
-
-      if (error) throw error;
-      loadNotes();
+      await deleteNote(noteId);
       toast({
         title: 'Note deleted',
         description: 'Your note has been deleted successfully.',
@@ -146,53 +151,12 @@ export default function Notes() {
     } catch (error) {
       handleToastError('Error deleting note', error);
     }
-  };
+  }, [deleteNote, handleToastError, toast, userId]);
 
-  const loadCoursesAndFolders = async () => {
-    if (!user) return;
-
+  const handleMoveToCourse = useCallback(async (noteId: string, courseId: string | null) => {
+    if (!userId) return;
     try {
-      const [coursesRes, foldersRes] = await Promise.all([
-        supabase
-          .from('courses')
-          .select('id, name')
-          .eq('user_id', user.id)
-          .order('name'),
-        supabase
-          .from('folders')
-          .select('id, name')
-          .eq('user_id', user.id)
-          .order('name')
-      ]);
-      
-      if (coursesRes.error) throw coursesRes.error;
-      if (foldersRes.error) throw foldersRes.error;
-      
-      setCourses(coursesRes.data || []);
-      setFolders(foldersRes.data || []);
-    } catch (error) {
-      console.error('Error loading courses/folders:', error);
-    }
-  };
-
-  const handleMoveToCourse = async (noteId: string, courseId: string | null) => {
-    if (!user) return;
-
-    try {
-      const { error } = await supabase
-        .from('notes')
-        .update({ course_id: courseId })
-        .eq('id', noteId)
-        .eq('user_id', user.id);
-
-      if (error) throw error;
-
-      setNotes((prevNotes) =>
-        prevNotes.map(note =>
-          note.id === noteId ? { ...note, course_id: courseId } : note
-        )
-      );
-
+      await moveToCourse({ noteId, courseId });
       toast({
         title: 'Success',
         description: courseId ? 'Note moved to course' : 'Note removed from course',
@@ -200,26 +164,12 @@ export default function Notes() {
     } catch (error) {
       handleToastError('Error', error);
     }
-  };
+  }, [handleToastError, moveToCourse, toast, userId]);
 
-  const handleMoveToFolder = async (noteId: string, folderId: string | null) => {
-    if (!user) return;
-
+  const handleMoveToFolder = useCallback(async (noteId: string, folderId: string | null) => {
+    if (!userId) return;
     try {
-      const { error } = await supabase
-        .from('notes')
-        .update({ folder_id: folderId })
-        .eq('id', noteId)
-        .eq('user_id', user.id);
-
-      if (error) throw error;
-
-      setNotes((prevNotes) =>
-        prevNotes.map(note =>
-          note.id === noteId ? { ...note, folder_id: folderId } : note
-        )
-      );
-
+      await moveToFolder({ noteId, folderId });
       toast({
         title: 'Success',
         description: folderId ? 'Note moved to folder' : 'Note removed from folder',
@@ -227,17 +177,28 @@ export default function Notes() {
     } catch (error) {
       handleToastError('Error', error);
     }
-  };
+  }, [handleToastError, moveToFolder, toast, userId]);
 
-  const filteredNotes = notes.filter(note => {
-    const matchesSearch = !searchQuery || 
-      note.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      note.plain_text?.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      note.tags?.some(tag => tag.toLowerCase().includes(searchQuery.toLowerCase()));
-    const matchesCourse = !selectedCourseId || note.course_id === selectedCourseId;
-    const matchesFolder = !selectedFolderId || note.folder_id === selectedFolderId;
-    return matchesSearch && matchesCourse && matchesFolder;
-  });
+  const handleDragStart = useCallback((noteId: string) => {
+    setDraggingId(noteId);
+  }, []);
+
+  const handleDragEnter = useCallback((targetId: string) => {
+    setNoteOrder((prev) => {
+      if (!draggingId || draggingId === targetId) return prev;
+      const updated = [...prev];
+      const fromIndex = updated.indexOf(draggingId);
+      const toIndex = updated.indexOf(targetId);
+      if (fromIndex === -1 || toIndex === -1) return prev;
+      updated.splice(fromIndex, 1);
+      updated.splice(toIndex, 0, draggingId);
+      return updated;
+    });
+  }, [draggingId, setNoteOrder]);
+
+  const handleDragEnd = useCallback(() => {
+    setDraggingId(null);
+  }, []);
 
   if (!user) {
     return (
@@ -259,7 +220,7 @@ export default function Notes() {
       <div className="flex flex-1">
         <NotesSidebar
           onCreateNote={handleCreateNote}
-          userId={user?.id}
+          userId={userId}
           onCourseClick={(courseId) => {
             setSelectedCourseId(courseId === selectedCourseId ? null : courseId);
             setSelectedFolderId(null);
@@ -273,13 +234,20 @@ export default function Notes() {
           selectedFolderId={selectedFolderId}
         />
 
-        <div className="flex-1 p-8">
+        <div className="flex-1 p-4 md:p-8">
           <div className="max-w-6xl mx-auto">
-            <div className="flex items-center justify-between mb-8">
+            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-8">
               <SearchBar onSearch={handleSearch} />
+              <Button
+                onClick={handleCreateNote}
+                className="sm:hidden bg-gradient-to-r from-primary to-accent"
+              >
+                <Plus className="w-4 h-4 mr-2" />
+                New note
+              </Button>
             </div>
 
-            {loading ? (
+            {isLoading ? (
               <div className="flex items-center justify-center py-12">
                 <Loader2 className="w-8 h-8 animate-spin text-primary" />
               </div>
@@ -301,7 +269,7 @@ export default function Notes() {
               </div>
             ) : (
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                {filteredNotes.map(note => (
+                {filteredNotes.map((note) => (
                   <NoteCard
                     key={note.id}
                     note={note}
@@ -312,6 +280,11 @@ export default function Notes() {
                     folders={folders}
                     onMoveToCourse={handleMoveToCourse}
                     onMoveToFolder={handleMoveToFolder}
+                    draggable
+                    isDragging={draggingId === note.id}
+                    onDragStart={() => handleDragStart(note.id)}
+                    onDragEnter={() => handleDragEnter(note.id)}
+                    onDragEnd={handleDragEnd}
                   />
                 ))}
               </div>
@@ -320,7 +293,7 @@ export default function Notes() {
         </div>
 
         <Button
-          className="fixed bottom-8 right-8 rounded-full w-14 h-14 shadow-lg"
+          className="fixed bottom-8 right-8 rounded-full w-14 h-14 shadow-lg hidden sm:flex"
           onClick={handleCreateNote}
         >
           <Plus className="w-6 h-6" />

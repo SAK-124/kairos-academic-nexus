@@ -78,7 +78,7 @@ export function TipTapEditor({ noteId, initialContent, onSave }: TipTapEditorPro
 
   return (
     <div className="border border-border/40 rounded-lg overflow-hidden bg-card/50 backdrop-blur">
-      <EditorToolbar editor={editor} noteId={noteId} />
+      <EditorToolbar editor={editor} />
       <div className="p-6">
         <EditorContent editor={editor} />
       </div>

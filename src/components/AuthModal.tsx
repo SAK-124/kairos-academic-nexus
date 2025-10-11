@@ -20,6 +20,7 @@ export const AuthModal = ({ open, onOpenChange, onSuccess, onClose }: AuthModalP
   const [isLoading, setIsLoading] = useState(false);
   const [emailSent, setEmailSent] = useState(false);
   const [mode, setMode] = useState<"magic" | "password">("magic");
+  const [authFlow, setAuthFlow] = useState<"signIn" | "signUp">("signIn");
   const { toast } = useToast();
 
   const handleMagicLink = async (e: React.FormEvent) => {
@@ -106,7 +107,7 @@ export const AuthModal = ({ open, onOpenChange, onSuccess, onClose }: AuthModalP
 
   const handlePasswordAuth = async (e: React.FormEvent) => {
     e.preventDefault();
-    
+
     if (!email || !email.includes("@")) {
       toast({
         title: "Invalid email",
@@ -128,34 +129,59 @@ export const AuthModal = ({ open, onOpenChange, onSuccess, onClose }: AuthModalP
     setIsLoading(true);
     
     try {
-      // Try signing in first
-      let { data, error } = await supabase.auth.signInWithPassword({
-        email,
-        password,
-      });
-
-      // If user doesn't exist, sign them up
-      if (error && error.message.includes("Invalid")) {
-        const signUpResult = await supabase.auth.signUp({
+      if (authFlow === "signUp") {
+        const { data, error } = await supabase.auth.signUp({
           email,
           password,
           options: {
             emailRedirectTo: `${window.location.origin}/`,
           }
         });
-        data = signUpResult.data;
-        error = signUpResult.error;
+
+        if (error) {
+          toast({
+            title: "Sign up failed",
+            description: error.message,
+            variant: "destructive",
+          });
+          if (error.message.toLowerCase().includes("registered")) {
+            // Encourage switching back to sign-in when the account already exists
+            setAuthFlow("signIn");
+          }
+          return;
+        }
+
+        if (data.user) {
+          toast({
+            title: "Check your email",
+            description: "Confirm your address to finish creating your account",
+          });
+          setEmailSent(true);
+        }
+        return;
       }
 
+      const { data, error } = await supabase.auth.signInWithPassword({
+        email,
+        password,
+      });
+
       if (error) {
+        const description = error.message.includes("Email not confirmed")
+          ? "Please verify your email before signing in."
+          : error.message;
+
         toast({
           title: "Authentication failed",
-          description: error.message,
+          description,
           variant: "destructive",
         });
-      } else if (data.user) {
+        return;
+      }
+
+      if (data.user) {
         toast({
-          title: "Welcome to Kairos!",
+          title: "Welcome back!",
           description: "You've successfully signed in",
         });
         onSuccess?.();
@@ -282,22 +308,33 @@ export const AuthModal = ({ open, onOpenChange, onSuccess, onClose }: AuthModalP
                     className="h-12"
                   />
                 </div>
-                <Button 
-                  type="submit" 
+                <Button
+                  type="submit"
                   className="w-full h-12 bg-gradient-to-r from-primary to-accent hover:opacity-90"
                   disabled={isLoading}
                 >
                   {isLoading ? (
                     <>
                       <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                      Signing in...
+                      {authFlow === "signIn" ? "Signing in..." : "Creating account..."}
                     </>
                   ) : (
-                    "Continue"
+                    authFlow === "signIn" ? "Continue" : "Create account"
                   )}
                 </Button>
-                <p className="text-xs text-muted-foreground text-center">
-                  New users will be automatically registered
+                <p className="text-xs text-muted-foreground text-center space-y-1">
+                  <span className="block">
+                    {authFlow === "signIn"
+                      ? "Welcome back! Sign in with your email and password."
+                      : "We'll send a confirmation link to finish setting up your account."}
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => setAuthFlow(authFlow === "signIn" ? "signUp" : "signIn")}
+                    className="text-primary underline-offset-2 hover:underline"
+                  >
+                    {authFlow === "signIn" ? "Need an account? Create one" : "Already registered? Sign in instead"}
+                  </button>
                 </p>
               </form>
             )}

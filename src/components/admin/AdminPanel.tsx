@@ -160,10 +160,6 @@ export const AdminPanel = ({ onClose }: AdminPanelProps) => {
   const [aiTestPrompt, setAiTestPrompt] = useState("Summarize upcoming releases in one paragraph.");
   const [aiTestResponse, setAiTestResponse] = useState("");
 
-  useEffect(() => {
-    void loadAll();
-  }, [loadAll]);
-
   const hasConfigChanges = useMemo(
     () =>
       aiApiKeyInput.trim().length > 0 ||
@@ -174,37 +170,6 @@ export const AdminPanel = ({ onClose }: AdminPanelProps) => {
 
   const setBusy = (key: keyof LoadingState, value: boolean) =>
     setLoading((prev) => ({ ...prev, [key]: value }));
-
-  const loadAll = useCallback(async () => {
-    setIsLoading(true);
-    try {
-      await Promise.all([
-        loadContentSections(),
-        loadButtons(),
-        loadAnimationSettings(),
-        loadLibrary(),
-        loadAiInsights(),
-        loadEngagement(),
-      ]);
-    } catch (error) {
-      console.error("Failed to load admin panel", error);
-      toast({
-        title: "Failed to load data",
-        description: error instanceof Error ? error.message : "Unknown error",
-        variant: "destructive",
-      });
-    } finally {
-      setIsLoading(false);
-    }
-  }, [
-    loadAiInsights,
-    loadAnimationSettings,
-    loadButtons,
-    loadContentSections,
-    loadEngagement,
-    loadLibrary,
-    toast,
-  ]);
 
   const loadContentSections = useCallback(async () => {
     setBusy("content", true);
@@ -351,6 +316,41 @@ export const AdminPanel = ({ onClose }: AdminPanelProps) => {
     setContacts(data ?? []);
     setBusy("engagement", false);
   }, []);
+
+  const loadAll = useCallback(async () => {
+    setIsLoading(true);
+    try {
+      await Promise.all([
+        loadContentSections(),
+        loadButtons(),
+        loadAnimationSettings(),
+        loadLibrary(),
+        loadAiInsights(),
+        loadEngagement(),
+      ]);
+    } catch (error) {
+      console.error("Failed to load admin panel", error);
+      toast({
+        title: "Failed to load data",
+        description: error instanceof Error ? error.message : "Unknown error",
+        variant: "destructive",
+      });
+    } finally {
+      setIsLoading(false);
+    }
+  }, [
+    loadAiInsights,
+    loadAnimationSettings,
+    loadButtons,
+    loadContentSections,
+    loadEngagement,
+    loadLibrary,
+    toast,
+  ]);
+
+  useEffect(() => {
+    void loadAll();
+  }, [loadAll]);
 
   const handleSaveAiConfig = async () => {
     if (!hasConfigChanges) return;

@@ -1,6 +1,7 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import type { User } from '@supabase/supabase-js';
+import { useVirtualizer } from '@tanstack/react-virtual';
 import { supabase } from '@/integrations/supabase/client';
 import { Button } from '@/components/ui/button';
 import { Plus, Loader2 } from 'lucide-react';
@@ -14,6 +15,8 @@ import { QuizViewer } from '@/components/notes/QuizViewer';
 import { useNotesWorkspace } from '@/hooks/useNotesWorkspace';
 import { useLocalStorage } from '@/hooks/useLocalStorage';
 
+const PAGE_SIZE = 30;
+
 export default function Notes() {
   const [user, setUser] = useState<User | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
@@ -21,26 +24,34 @@ export default function Notes() {
   const [selectedFolderId, setSelectedFolderId] = useState<string | null>(null);
   const [viewingMaterial, setViewingMaterial] = useState<StudyMaterial | null>(null);
   const [draggingId, setDraggingId] = useState<string | null>(null);
+  const [page, setPage] = useState(0);
   const navigate = useNavigate();
   const { toast } = useToast();
 
   const userId = user?.id;
-  const [noteOrder, setNoteOrder] = useLocalStorage<string[]>(
-    `notes-order-${userId ?? 'guest'}`,
-    []
-  );
+  const orderStorageKey = `notes-order-${userId ?? 'guest'}-page-${page}`;
+  const [noteOrder, setNoteOrder] = useLocalStorage<string[]>(orderStorageKey, []);
 
   const {
     notes,
+    totalCount,
     courses,
     folders,
     isLoading,
+    isFetching,
     createNote,
     toggleFavorite,
     deleteNote,
     moveToCourse,
     moveToFolder,
-  } = useNotesWorkspace({ userId });
+  } = useNotesWorkspace({
+    userId,
+    page,
+    pageSize: PAGE_SIZE,
+    search: searchQuery,
+    courseId: selectedCourseId,
+    folderId: selectedFolderId,
+  });
 
   const handleToastError = useCallback(
     (title: string, error: unknown) => {
@@ -73,6 +84,10 @@ export default function Notes() {
     });
   }, [notes, setNoteOrder]);
 
+  useEffect(() => {
+    setPage(0);
+  }, [searchQuery, selectedCourseId, selectedFolderId]);
+
   const orderedNotes = useMemo(() => {
     if (!noteOrder.length) return notes;
     const orderMap = new Map(noteOrder.map((id, index) => [id, index]));
@@ -91,16 +106,28 @@ export default function Notes() {
   }, [noteOrder, notes]);
 
   const filteredNotes = useMemo(() => {
+    if (!searchQuery.trim()) {
+      return orderedNotes;
+    }
+    const lowered = searchQuery.toLowerCase();
     return orderedNotes.filter((note) => {
-      const matchesSearch = !searchQuery ||
-        note.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        note.plain_text?.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        note.tags?.some((tag) => tag.toLowerCase().includes(searchQuery.toLowerCase()));
-      const matchesCourse = !selectedCourseId || note.course_id === selectedCourseId;
-      const matchesFolder = !selectedFolderId || note.folder_id === selectedFolderId;
-      return matchesSearch && matchesCourse && matchesFolder;
+      const matchesText = note.title?.toLowerCase().includes(lowered) || note.plain_text?.toLowerCase().includes(lowered);
+      const matchesTags = note.tags?.some((tag) => tag.toLowerCase().includes(lowered));
+      return Boolean(matchesText || matchesTags);
     });
-  }, [orderedNotes, searchQuery, selectedCourseId, selectedFolderId]);
+  }, [orderedNotes, searchQuery]);
+
+  const totalPages = Math.max(1, Math.ceil(totalCount / PAGE_SIZE));
+  const canPrevious = page > 0;
+  const canNext = page + 1 < totalPages;
+
+  const listParentRef = useRef<HTMLDivElement>(null);
+  const rowVirtualizer = useVirtualizer({
+    count: filteredNotes.length,
+    getScrollElement: () => listParentRef.current,
+    estimateSize: () => 280,
+    overscan: 8,
+  });
 
   async function checkAuth() {
     const {
@@ -235,16 +262,29 @@ export default function Notes() {
         />
 
         <div className="flex-1 p-4 md:p-8">
-          <div className="max-w-6xl mx-auto">
-            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-8">
+          <div className="max-w-6xl mx-auto space-y-6">
+            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
               <SearchBar onSearch={handleSearch} />
-              <Button
-                onClick={handleCreateNote}
-                className="sm:hidden bg-gradient-to-r from-primary to-accent"
-              >
-                <Plus className="w-4 h-4 mr-2" />
-                New note
-              </Button>
+              <div className="flex items-center gap-2">
+                <Button
+                  onClick={handleCreateNote}
+                  className="sm:hidden bg-gradient-to-r from-primary to-accent"
+                >
+                  <Plus className="w-4 h-4 mr-2" />
+                  New note
+                </Button>
+                <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                  <span>Page {page + 1} of {totalPages}</span>
+                  <div className="flex gap-1">
+                    <Button variant="outline" size="sm" disabled={!canPrevious} onClick={() => canPrevious && setPage((prev) => prev - 1)}>
+                      Prev
+                    </Button>
+                    <Button variant="outline" size="sm" disabled={!canNext} onClick={() => canNext && setPage((prev) => prev + 1)}>
+                      Next
+                    </Button>
+                  </div>
+                </div>
+              </div>
             </div>
 
             {isLoading ? (
@@ -268,25 +308,46 @@ export default function Notes() {
                 </Button>
               </div>
             ) : (
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                {filteredNotes.map((note) => (
-                  <NoteCard
-                    key={note.id}
-                    note={note}
-                    onClick={() => navigate(`/notes/${note.id}`)}
-                    onFavorite={handleFavorite}
-                    onDelete={handleDelete}
-                    courses={courses}
-                    folders={folders}
-                    onMoveToCourse={handleMoveToCourse}
-                    onMoveToFolder={handleMoveToFolder}
-                    draggable
-                    isDragging={draggingId === note.id}
-                    onDragStart={() => handleDragStart(note.id)}
-                    onDragEnter={() => handleDragEnter(note.id)}
-                    onDragEnd={handleDragEnd}
-                  />
-                ))}
+              <div className="relative">
+                <div
+                  ref={listParentRef}
+                  className="h-[70vh] overflow-auto pr-1"
+                >
+                  <div style={{ height: rowVirtualizer.getTotalSize(), position: 'relative' }}>
+                    {rowVirtualizer.getVirtualItems().map((virtualItem) => {
+                      const note = filteredNotes[virtualItem.index];
+                      if (!note) return null;
+                      return (
+                        <div
+                          key={virtualItem.key}
+                          className="absolute top-0 left-0 w-full px-1 md:px-2 pb-3"
+                          style={{ transform: `translateY(${virtualItem.start}px)` }}
+                        >
+                          <NoteCard
+                            note={note}
+                            onClick={() => navigate(`/notes/${note.id}`)}
+                            onFavorite={handleFavorite}
+                            onDelete={handleDelete}
+                            courses={courses}
+                            folders={folders}
+                            onMoveToCourse={handleMoveToCourse}
+                            onMoveToFolder={handleMoveToFolder}
+                            draggable
+                            isDragging={draggingId === note.id}
+                            onDragStart={() => handleDragStart(note.id)}
+                            onDragEnter={() => handleDragEnter(note.id)}
+                            onDragEnd={handleDragEnd}
+                          />
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+                {isFetching && !isLoading && (
+                  <div className="absolute inset-x-0 top-2 flex justify-center">
+                    <Loader2 className="w-5 h-5 animate-spin text-primary" />
+                  </div>
+                )}
               </div>
             )}
           </div>

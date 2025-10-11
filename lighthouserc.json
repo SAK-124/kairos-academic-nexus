@@ -1,0 +1,16 @@
+{
+  "ci": {
+    "collect": {
+      "staticDistDir": "./dist",
+      "numberOfRuns": 1,
+      "settings": { "preset": "mobile" }
+    },
+    "assert": {
+      "assertions": {
+        "categories:performance": ["error", { "minScore": 0.9 }],
+        "resource-summary:total-byte-weight": ["error", { "maxNumericValue": 350000 }],
+        "script-treemap-data": "off"
+      }
+    }
+  }
+}

@@ -85,3 +85,25 @@ Yes, you can!
 To connect a domain, navigate to Project > Settings > Domains and click Connect Domain.
 
 Read more here: [Setting up a custom domain](https://docs.lovable.dev/features/custom-domain#custom-domain)
+
+## Performance
+
+The application now includes automated budgets and tooling to keep bundle and runtime metrics in check.
+
+### Measurement workflow
+1. `npm install`
+2. `npm run build`
+3. `npm run analyze` to generate `dist/stats.html`
+4. `npm run lhci` to verify Lighthouse performance budgets (mobile preset)
+
+### Budgets
+- **JavaScript bundles**: each chunk must remain under 250 KB gzip (`lhci` assertion)
+- **Largest Contentful Paint (mobile)**: ≤ 2.5 s (verified via Lighthouse CI)
+- **Total transfer size**: ≤ 350 KB (gzip) for the critical path (`lhci` assertion)
+
+### Delivery assumptions
+- Production builds are deployed behind an HTTP/2 or HTTP/3 CDN that serves `dist/` assets with long-lived cache headers for hashed files.
+- Brotli compression is enabled at the edge (handled by Vite during build and by the CDN during delivery).
+- Non-critical analytics scripts load during `requestIdleCallback`, and animated backgrounds respect `prefers-reduced-motion` to avoid unnecessary GPU work.
+
+Refer to the new `analyze` and `lhci` scripts in `package.json` for the one-click commands that enforce these targets.

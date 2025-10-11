@@ -1,4 +1,11 @@
 import { useNavigate } from "react-router-dom";
+import { prefetch, prefetchModule } from "@/lib/prefetch";
+
+const footerPrefetchers: Record<string, () => Promise<void>> = {
+  "/privacy": () => prefetchModule(() => import("@/pages/PrivacyPolicy")),
+  "/terms": () => prefetchModule(() => import("@/pages/TermsOfService")),
+  "/contact": () => prefetchModule(() => import("@/pages/Contact")),
+};
 
 export const FooterSection = () => {
   const navigate = useNavigate();
@@ -18,18 +25,30 @@ export const FooterSection = () => {
           <div className="flex gap-6 text-sm text-muted-foreground">
             <button
               onClick={() => navigate("/privacy")}
+              onMouseEnter={() => {
+                prefetch("/privacy");
+                void footerPrefetchers["/privacy"]?.();
+              }}
               className="hover:text-primary transition-colors"
             >
               Privacy Policy
             </button>
             <button
               onClick={() => navigate("/terms")}
+              onMouseEnter={() => {
+                prefetch("/terms");
+                void footerPrefetchers["/terms"]?.();
+              }}
               className="hover:text-primary transition-colors"
             >
               Terms of Service
             </button>
             <button
               onClick={() => navigate("/contact")}
+              onMouseEnter={() => {
+                prefetch("/contact");
+                void footerPrefetchers["/contact"]?.();
+              }}
               className="hover:text-primary transition-colors"
             >
               Contact

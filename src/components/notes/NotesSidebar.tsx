@@ -86,9 +86,10 @@ export function NotesSidebar({ onCreateNote, onCourseClick, onFolderClick, onVie
 
       const { data, error } = await supabase
         .from('courses')
-        .select('*')
+        .select('id,name,code,color')
         .eq('user_id', user.id)
-        .order('name');
+        .order('name')
+        .range(0, 199);
 
       if (error) throw error;
       setCourses(data || []);
@@ -104,9 +105,10 @@ export function NotesSidebar({ onCreateNote, onCourseClick, onFolderClick, onVie
 
       const { data, error } = await supabase
         .from('folders')
-        .select('*')
+        .select('id,name,parent_id,course_id')
         .eq('user_id', user.id)
-        .order('name');
+        .order('name')
+        .range(0, 199);
 
       if (error) throw error;
       setFolders(data || []);
@@ -119,9 +121,10 @@ export function NotesSidebar({ onCreateNote, onCourseClick, onFolderClick, onVie
     try {
       const { data, error } = await supabase
         .from('study_materials')
-        .select('*, notes(title)')
+        .select('id,type,note_id,course_id,folder_id,content,created_at,notes(title)')
         .eq('user_id', currentUserId)
-        .order('created_at', { ascending: false });
+        .order('created_at', { ascending: false })
+        .range(0, 199);
 
       if (error) throw error;
       setStudyMaterials(data || []);

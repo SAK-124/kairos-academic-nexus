@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
 import { Button } from '@/components/ui/button';
@@ -10,40 +10,31 @@ import { AnimatedLogo } from '@/components/AnimatedLogo';
 import { FlashcardViewer } from '@/components/notes/FlashcardViewer';
 import { QuizViewer } from '@/components/notes/QuizViewer';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import type { Database } from '@/integrations/supabase/types';
+import type { FlashcardItem, QuizQuestionItem } from '@/types/ai';
+
+type NoteRow = Database['public']['Tables']['notes']['Row'];
+type CourseRow = Database['public']['Tables']['courses']['Row'];
+type FolderRow = Database['public']['Tables']['folders']['Row'] & { description?: string | null };
 
 export default function NoteEditor() {
   const { id } = useParams();
   const navigate = useNavigate();
   const { toast } = useToast();
-  const [note, setNote] = useState<any>(null);
+  const [note, setNote] = useState<NoteRow | null>(null);
   const [loading, setLoading] = useState(true);
   const [title, setTitle] = useState('');
   const [isFavorite, setIsFavorite] = useState(false);
   const [lastSaved, setLastSaved] = useState<Date | null>(null);
   const [showFlashcardViewer, setShowFlashcardViewer] = useState(false);
   const [showQuizViewer, setShowQuizViewer] = useState(false);
-  const [flashcards, setFlashcards] = useState<any[]>([]);
-  const [quizQuestions, setQuizQuestions] = useState<any[]>([]);
+  const [flashcards, setFlashcards] = useState<FlashcardItem[]>([]);
+  const [quizQuestions, setQuizQuestions] = useState<QuizQuestionItem[]>([]);
   const [isGenerating, setIsGenerating] = useState(false);
-  const [courses, setCourses] = useState<any[]>([]);
-  const [folders, setFolders] = useState<any[]>([]);
+  const [courses, setCourses] = useState<CourseRow[]>([]);
+  const [folders, setFolders] = useState<FolderRow[]>([]);
 
-  useEffect(() => {
-    checkAuthAndLoadNote();
-    loadCoursesAndFolders();
-  }, [id]);
-
-  const checkAuthAndLoadNote = async () => {
-    const { data: { session } } = await supabase.auth.getSession();
-    if (!session) {
-      navigate('/?auth=true');
-      return;
-    }
-
-    await loadNote();
-  };
-
-  const loadNote = async () => {
+  const loadNote = useCallback(async () => {
     try {
       setLoading(true);
       const { data, error } = await supabase
@@ -53,23 +44,34 @@ export default function NoteEditor() {
         .single();
 
       if (error) throw error;
-      
-      setNote(data);
-      setTitle(data.title);
-      setIsFavorite(data.is_favorite);
-    } catch (error: any) {
+
+      setNote(data as NoteRow);
+      setTitle(data.title ?? '');
+      setIsFavorite(Boolean(data.is_favorite));
+    } catch (error: unknown) {
+      const message = error instanceof Error ? error.message : 'Unknown error';
       toast({
         title: 'Error loading note',
-        description: error.message,
+        description: message,
         variant: 'destructive',
       });
       navigate('/notes');
     } finally {
       setLoading(false);
     }
-  };
+  }, [id, navigate, toast]);
 
-  const loadCoursesAndFolders = async () => {
+  const checkAuthAndLoadNote = useCallback(async () => {
+    const { data: { session } } = await supabase.auth.getSession();
+    if (!session) {
+      navigate('/?auth=true');
+      return;
+    }
+
+    await loadNote();
+  }, [loadNote, navigate]);
+
+  const loadCoursesAndFolders = useCallback(async () => {
     const { data: { session } } = await supabase.auth.getSession();
     if (!session) return;
 
@@ -78,9 +80,14 @@ export default function NoteEditor() {
       supabase.from('folders').select('*').eq('user_id', session.user.id),
     ]);
 
-    if (coursesData.data) setCourses(coursesData.data);
-    if (foldersData.data) setFolders(foldersData.data);
-  };
+    if (coursesData.data) setCourses(coursesData.data as CourseRow[]);
+    if (foldersData.data) setFolders(foldersData.data as FolderRow[]);
+  }, []);
+
+  useEffect(() => {
+    void checkAuthAndLoadNote();
+    void loadCoursesAndFolders();
+  }, [checkAuthAndLoadNote, loadCoursesAndFolders]);
 
   const handleTitleChange = async (newTitle: string) => {
     setTitle(newTitle);
@@ -92,7 +99,7 @@ export default function NoteEditor() {
 
       if (error) throw error;
       setLastSaved(new Date());
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error('Error updating title:', error);
     }
   };
@@ -106,10 +113,11 @@ export default function NoteEditor() {
 
       if (error) throw error;
       setIsFavorite(!isFavorite);
-    } catch (error: any) {
+    } catch (error: unknown) {
+      const message = error instanceof Error ? error.message : 'Failed to update favorite';
       toast({
         title: 'Error updating note',
-        description: error.message,
+        description: message,
         variant: 'destructive',
       });
     }
@@ -125,10 +133,11 @@ export default function NoteEditor() {
       if (error) throw error;
       setNote({ ...note, course_id: courseId === 'none' ? null : courseId });
       toast({ title: 'Course updated' });
-    } catch (error: any) {
+    } catch (error: unknown) {
+      const message = error instanceof Error ? error.message : 'Failed to update course';
       toast({
         title: 'Error updating course',
-        description: error.message,
+        description: message,
         variant: 'destructive',
       });
     }
@@ -144,10 +153,11 @@ export default function NoteEditor() {
       if (error) throw error;
       setNote({ ...note, folder_id: folderId === 'none' ? null : folderId });
       toast({ title: 'Folder updated' });
-    } catch (error: any) {
+    } catch (error: unknown) {
+      const message = error instanceof Error ? error.message : 'Failed to update folder';
       toast({
         title: 'Error updating folder',
-        description: error.message,
+        description: message,
         variant: 'destructive',
       });
     }

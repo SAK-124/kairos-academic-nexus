@@ -233,6 +233,7 @@ export type Database = {
         Row: {
           course_id: string | null
           created_at: string | null
+          description: string | null
           id: string
           name: string
           parent_id: string | null
@@ -242,6 +243,7 @@ export type Database = {
         Insert: {
           course_id?: string | null
           created_at?: string | null
+          description?: string | null
           id?: string
           name: string
           parent_id?: string | null
@@ -251,6 +253,7 @@ export type Database = {
         Update: {
           course_id?: string | null
           created_at?: string | null
+          description?: string | null
           id?: string
           name?: string
           parent_id?: string | null

@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import type { User } from "@supabase/supabase-js";
 import { IntroSection } from "@/components/landing/IntroSection";
@@ -11,7 +11,7 @@ import { TestimonialSection } from "@/components/landing/TestimonialSection";
 import { FAQSection } from "@/components/landing/FAQSection";
 import { PricingSection } from "@/components/landing/PricingSection";
 import { AuthModal } from "@/components/AuthModal";
-import { EnhancedAdminPanel } from "@/components/EnhancedAdminPanel";
+import { AdminPanel } from "@/components/admin/AdminPanel";
 import { AISearchBar } from "@/components/AISearchBar";
 import { Navigation } from "@/components/Navigation";
 import { supabase } from "@/integrations/supabase/client";
@@ -28,22 +28,7 @@ const Index = () => {
   const navigate = useNavigate();
   const { toast } = useToast();
 
-  useEffect(() => {
-    checkUser();
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
-      setUser(session?.user ?? null);
-      checkAdminStatus(session?.user);
-    });
-    return () => subscription.unsubscribe();
-  }, []);
-
-  const checkUser = async () => {
-    const { data: { session } } = await supabase.auth.getSession();
-    setUser(session?.user ?? null);
-    checkAdminStatus(session?.user);
-  };
-
-  const checkAdminStatus = async (currentUser: User | null | undefined) => {
+  const checkAdminStatus = useCallback(async (currentUser: User | null | undefined) => {
     if (!currentUser) {
       setIsAdmin(false);
       return;
@@ -55,7 +40,22 @@ const Index = () => {
       .eq("role", "admin")
       .maybeSingle();
     setIsAdmin(!!data);
-  };
+  }, []);
+
+  const checkUser = useCallback(async () => {
+    const { data: { session } } = await supabase.auth.getSession();
+    setUser(session?.user ?? null);
+    await checkAdminStatus(session?.user);
+  }, [checkAdminStatus]);
+
+  useEffect(() => {
+    void checkUser();
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+      setUser(session?.user ?? null);
+      void checkAdminStatus(session?.user);
+    });
+    return () => subscription.unsubscribe();
+  }, [checkAdminStatus, checkUser]);
 
   const handleIntroComplete = () => {
     setShowIntro(false);
@@ -125,7 +125,7 @@ const Index = () => {
 
       <AISearchBar />
       {showAuthModal && <AuthModal onClose={() => setShowAuthModal(false)} />}
-      {showAdminPanel && <EnhancedAdminPanel onClose={() => setShowAdminPanel(false)} />}
+      {showAdminPanel && <AdminPanel onClose={() => setShowAdminPanel(false)} />}
     </div>
   );
 };

@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -134,6 +134,214 @@ const defaultAiConfig: AiConfigSummary = {
 const toLocaleDate = (value: string | null) =>
   value ? new Date(value).toLocaleString() : "Not available";
 
+const deepClone = <T,>(value: T): T => JSON.parse(JSON.stringify(value)) as T;
+
+const fallbackContentSections: ContentSections = {
+  hero: {
+    headline: "Your AI-Powered Academic Companion",
+    description:
+      "Transform chaos into clarity with Kairos. Plan smarter, sync your notes, and surface insights without leaving your flow.",
+    cta: "Launch workspace",
+  },
+  "social-proof": {
+    statLabel: "Active students",
+    statValue: "20+",
+    quote:
+      "Kairos transformed my course planning from a 3-hour nightmare into a 5-minute breeze.",
+    author: "Ahmed K.",
+    role: "BBA Student, IBA",
+  },
+  pricing: {
+    plans: [
+      {
+        name: "Student",
+        price: "$6/mo",
+        features: [
+          "Adaptive scheduler",
+          "Smart note summaries",
+          "Unlimited folders",
+        ],
+      },
+      {
+        name: "Team",
+        price: "$18/mo",
+        features: [
+          "Shared workspace",
+          "AI knowledge base",
+          "Priority support",
+        ],
+      },
+    ],
+  },
+  faq: {
+    items: [
+      {
+        question: "How does Kairos personalise my planner?",
+        answer:
+          "We blend your course calendars, assignment metadata, and focus preferences to build a schedule that flexes with real life.",
+      },
+      {
+        question: "Do you support collaborative notes?",
+        answer:
+          "Yes. Invite classmates into shared folders to co-create outlines, flashcards, and annotated research.",
+      },
+    ],
+  },
+  ai: {
+    defaultPrompt: "You are Kairos, an academic co-pilot who keeps students ahead of every deadline.",
+  },
+};
+
+const fallbackButtonMappings: ButtonMapping[] = [
+  {
+    id: "demo-cta-primary",
+    button_id: "hero-primary",
+    text: "Launch workspace",
+    route: "/app",
+    hover_text: "Open Kairos",
+    enabled: true,
+    updated_at: "2024-04-12T10:00:00Z",
+  },
+  {
+    id: "demo-cta-secondary",
+    button_id: "hero-secondary",
+    text: "Explore features",
+    route: "/#features",
+    hover_text: "Scroll to feature overview",
+    enabled: true,
+    updated_at: "2024-04-12T10:00:00Z",
+  },
+];
+
+const fallbackAnimationSettings: Record<string, AnimationSetting["value"]> = {
+  global: {
+    fadeInDuration: "600ms",
+    easing: "ease-out",
+  },
+  intro: {
+    displayDuration: 2400,
+    delayBetween: 400,
+  },
+};
+
+const fallbackCourses: CourseRow[] = [
+  {
+    id: "demo-course-ops",
+    name: "Operations Research",
+    code: "OPS-401",
+    color: "#6366F1",
+    user_id: "demo-user",
+    created_at: "2024-04-10T09:00:00Z",
+    updated_at: "2024-04-12T08:45:00Z",
+  },
+  {
+    id: "demo-course-ethics",
+    name: "Ethics in Technology",
+    code: "ETH-210",
+    color: "#F97316",
+    user_id: "demo-user",
+    created_at: "2024-04-08T14:00:00Z",
+    updated_at: "2024-04-11T16:15:00Z",
+  },
+];
+
+const fallbackFolders: FolderRow[] = [
+  {
+    id: "demo-folder-week1",
+    name: "Week 1 - Foundations",
+    description: "Lecture outlines and preparatory reading",
+    user_id: "demo-user",
+    course_id: "demo-course-ops",
+    parent_id: null,
+    created_at: "2024-04-10T09:15:00Z",
+    updated_at: "2024-04-12T09:30:00Z",
+  },
+  {
+    id: "demo-folder-research",
+    name: "Research prompts",
+    description: "Questions to explore with the AI workspace",
+    user_id: "demo-user",
+    course_id: "demo-course-ethics",
+    parent_id: null,
+    created_at: "2024-04-08T14:30:00Z",
+    updated_at: "2024-04-11T12:10:00Z",
+  },
+];
+
+const fallbackNotes: NoteRow[] = [
+  {
+    id: "demo-note-1",
+    title: "Queueing theory primer",
+    updated_at: "2024-04-12T09:45:00Z",
+    course_id: "demo-course-ops",
+    folder_id: "demo-folder-week1",
+    user_id: "demo-user",
+  },
+  {
+    id: "demo-note-2",
+    title: "AI governance checklist",
+    updated_at: "2024-04-11T17:05:00Z",
+    course_id: "demo-course-ethics",
+    folder_id: "demo-folder-research",
+    user_id: "demo-user",
+  },
+];
+
+const fallbackAiInteractions: AiInteraction[] = [
+  {
+    id: "demo-ai-1",
+    interaction_type: "summary",
+    prompt: "Summarise chapter 3 on optimisation heuristics.",
+    response: "Chapter 3 highlights greedy, simulated annealing, and genetic heuristics with trade-offs in convergence and accuracy.",
+    created_at: "2024-04-12T09:50:00Z",
+    note_id: "demo-note-1",
+    model: "gemini-2.0-flash-lite",
+    tokens_used: 612,
+    user_id: "demo-user",
+  },
+  {
+    id: "demo-ai-2",
+    interaction_type: "brainstorm",
+    prompt: "Give ethical considerations for AI deployment in education.",
+    response:
+      "Discuss transparency, data privacy, bias mitigation, and preserving student agency when introducing automation into classrooms.",
+    created_at: "2024-04-11T17:15:00Z",
+    note_id: "demo-note-2",
+    model: "gemini-2.0-flash-lite",
+    tokens_used: 548,
+    user_id: "demo-user",
+  },
+];
+
+const fallbackAiConfig: AiConfigSummary = {
+  provider: "gemini",
+  model: "gemini-2.0-flash-lite",
+  keyPreview: "demo-****",
+  updatedAt: "2024-04-12T09:40:00Z",
+  updatedBy: "demo-admin",
+};
+
+const fallbackContacts: ContactSubmission[] = [
+  {
+    id: "demo-contact-1",
+    name: "Priya S.",
+    email: "priya@example.com",
+    subject: "Workspace sharing question",
+    message: "Can we limit a folder to view-only collaborators?",
+    resolved: false,
+    created_at: "2024-04-11T18:20:00Z",
+  },
+  {
+    id: "demo-contact-2",
+    name: "Noah L.",
+    email: "noah@example.com",
+    subject: "Billing",
+    message: "Does the team plan support procurement invoicing?",
+    resolved: true,
+    created_at: "2024-04-10T13:05:00Z",
+  },
+];
+
 export const AdminPanel = ({ onClose }: AdminPanelProps) => {
   const { toast } = useToast();
   const [isLoading, setIsLoading] = useState(true);
@@ -159,6 +367,8 @@ export const AdminPanel = ({ onClose }: AdminPanelProps) => {
   });
   const [aiTestPrompt, setAiTestPrompt] = useState("Summarize upcoming releases in one paragraph.");
   const [aiTestResponse, setAiTestResponse] = useState("");
+  const [isOfflineMode, setIsOfflineMode] = useState(false);
+  const offlineToastShown = useRef(false);
 
   const hasConfigChanges = useMemo(
     () =>
@@ -171,163 +381,219 @@ export const AdminPanel = ({ onClose }: AdminPanelProps) => {
   const setBusy = (key: keyof LoadingState, value: boolean) =>
     setLoading((prev) => ({ ...prev, [key]: value }));
 
+  const markOffline = useCallback(
+    (scope: string, error: unknown) => {
+      console.error(`Falling back to demo data for ${scope}`, error);
+      setIsOfflineMode(true);
+      if (!offlineToastShown.current) {
+        offlineToastShown.current = true;
+        toast({
+          title: "Demo data loaded",
+          description: "Supabase was unreachable. The admin panel is running in offline preview mode.",
+        });
+      }
+    },
+    [toast]
+  );
+
+  const offlineChangeMessage = "Offline demo mode active. Changes persist locally until you reconnect.";
+
   const loadContentSections = useCallback(async () => {
     setBusy("content", true);
-    const { data, error } = await supabase.from("content_sections").select("section_name, content");
-    if (error) {
-      throw error;
-    }
-
-    const next: ContentSections = {};
-    data?.forEach((section) => {
-      const content = section.content;
-      if (typeof content === "object" && content !== null && !Array.isArray(content)) {
-        next[section.section_name] = content as JsonObject;
+    try {
+      const { data, error } = await supabase.from("content_sections").select("section_name, content");
+      if (error) {
+        throw error;
       }
-    });
 
-    ensureSection<HeroContent>(next, "hero", {
-      headline: "Your AI-Powered Academic Companion",
-      description: "Transform chaos into clarity. Smart scheduling, intelligent notes, and seamless collaboration—all in one place.",
-      cta: "Start planning smarter",
-    });
+      const next: ContentSections = {};
+      data?.forEach((section) => {
+        const content = section.content;
+        if (typeof content === "object" && content !== null && !Array.isArray(content)) {
+          next[section.section_name] = content as JsonObject;
+        }
+      });
 
-    ensureSection<SocialProofContent>(next, "social-proof", {
-      statLabel: "Active students",
-      statValue: "20+",
-      quote: "Kairos transformed my course planning from a 3-hour nightmare into a 5-minute breeze.",
-      author: "Ahmed K.",
-      role: "BBA Student, IBA",
-    });
+      ensureSection<HeroContent>(next, "hero", fallbackContentSections.hero as HeroContent);
+      ensureSection<SocialProofContent>(next, "social-proof", fallbackContentSections["social-proof"] as SocialProofContent);
+      ensureSection<PricingContent>(next, "pricing", fallbackContentSections.pricing as PricingContent);
+      ensureSection<FaqContent>(next, "faq", fallbackContentSections.faq as FaqContent);
+      ensureSection<AiContent>(next, "ai", fallbackContentSections.ai as AiContent);
 
-    ensureSection<PricingContent>(next, "pricing", {
-      plans: [],
-    });
-
-    ensureSection<FaqContent>(next, "faq", {
-      items: [],
-    });
-
-    ensureSection<AiContent>(next, "ai", {
-      defaultPrompt: "You are Kairos, an academic co-pilot.",
-    });
-
-    setContentSections(next);
-    setBusy("content", false);
-  }, []);
+      setContentSections(next);
+      return true;
+    } catch (error) {
+      markOffline("content", error);
+      setContentSections(deepClone(fallbackContentSections));
+      return false;
+    } finally {
+      setBusy("content", false);
+    }
+  }, [markOffline]);
 
   const loadButtons = useCallback(async () => {
     setBusy("buttons", true);
-    const { data, error } = await supabase
-      .from("button_mappings")
-      .select("*")
-      .order("button_id", { ascending: true });
-    if (error) throw error;
-    setButtonMappings(data ?? []);
-    setBusy("buttons", false);
-  }, []);
+    try {
+      const { data, error } = await supabase
+        .from("button_mappings")
+        .select("*")
+        .order("button_id", { ascending: true });
+      if (error) throw error;
+      setButtonMappings(data ?? []);
+      return true;
+    } catch (error) {
+      markOffline("button mappings", error);
+      setButtonMappings(deepClone(fallbackButtonMappings));
+      return false;
+    } finally {
+      setBusy("buttons", false);
+    }
+  }, [markOffline]);
 
   const loadAnimationSettings = useCallback(async () => {
     setBusy("animations", true);
-    const { data, error } = await supabase.from("animation_settings").select("setting_name, value");
-    if (error) throw error;
-    const next: Record<string, AnimationSetting["value"]> = {};
-    data?.forEach((setting) => {
-      next[setting.setting_name] = setting.value;
-    });
-    setAnimationSettings(next);
-    setBusy("animations", false);
-  }, []);
+    try {
+      const { data, error } = await supabase.from("animation_settings").select("setting_name, value");
+      if (error) throw error;
+      const next: Record<string, AnimationSetting["value"]> = {};
+      data?.forEach((setting) => {
+        next[setting.setting_name] = setting.value;
+      });
+      setAnimationSettings(next);
+      return true;
+    } catch (error) {
+      markOffline("animation settings", error);
+      setAnimationSettings(deepClone(fallbackAnimationSettings));
+      return false;
+    } finally {
+      setBusy("animations", false);
+    }
+  }, [markOffline]);
 
   const loadLibrary = useCallback(async () => {
     setBusy("courses", true);
     setBusy("folders", true);
     setBusy("notes", true);
 
-    const [{ data: courseData, error: courseError }, { data: folderData, error: folderError }, { data: noteData, error: noteError }] = await Promise.all([
-      supabase
-        .from("courses")
-        .select("id, name, code, color, user_id, updated_at")
-        .order("updated_at", { ascending: false })
-        .limit(50),
-      supabase
-        .from("folders")
-        .select("id, name, description, user_id, updated_at")
-        .order("updated_at", { ascending: false })
-        .limit(50),
-      supabase
-        .from("notes")
-        .select("id, title, updated_at, course_id, folder_id, user_id")
-        .order("updated_at", { ascending: false })
-        .limit(100),
-    ]);
+    try {
+      const [{ data: courseData, error: courseError }, { data: folderData, error: folderError }, { data: noteData, error: noteError }]
+        = await Promise.all([
+          supabase
+            .from("courses")
+            .select("id, name, code, color, user_id, updated_at, created_at")
+            .order("updated_at", { ascending: false })
+            .limit(50),
+          supabase
+            .from("folders")
+            .select("id, name, description, user_id, updated_at, course_id, parent_id, created_at")
+            .order("updated_at", { ascending: false })
+            .limit(50),
+          supabase
+            .from("notes")
+            .select("id, title, updated_at, course_id, folder_id, user_id")
+            .order("updated_at", { ascending: false })
+            .limit(100),
+        ]);
 
-    if (courseError) throw courseError;
-    if (folderError) throw folderError;
-    if (noteError) throw noteError;
+      if (courseError) throw courseError;
+      if (folderError) throw folderError;
+      if (noteError) throw noteError;
 
-    setCourses(courseData ?? []);
-    setFolders(folderData ?? []);
-    setNotes(noteData ?? []);
-
-    setBusy("courses", false);
-    setBusy("folders", false);
-    setBusy("notes", false);
-  }, []);
+      setCourses(courseData ?? []);
+      setFolders(folderData ?? []);
+      setNotes(noteData ?? []);
+      return true;
+    } catch (error) {
+      markOffline("workspace library", error);
+      setCourses(deepClone(fallbackCourses));
+      setFolders(deepClone(fallbackFolders));
+      setNotes(deepClone(fallbackNotes));
+      return false;
+    } finally {
+      setBusy("courses", false);
+      setBusy("folders", false);
+      setBusy("notes", false);
+    }
+  }, [markOffline]);
 
   const loadAiInsights = useCallback(async () => {
+    const [interactionsResult, configResult] = await Promise.all([
+      supabase
+        .from("ai_interactions")
+        .select("id, interaction_type, created_at, prompt, response, note_id, model, tokens_used, user_id")
+        .order("created_at", { ascending: false })
+        .limit(20),
+      supabase.functions.invoke("ai-config", { method: "GET" }),
+    ]);
+
+    if (interactionsResult.error) throw interactionsResult.error;
+    setAiInteractions(interactionsResult.data ?? []);
+
+    if (configResult.error) {
+      console.error("Failed to load AI configuration", configResult.error);
+    } else {
+      const configPayload = (configResult.data as { config?: Partial<AiConfigSummary> } | null)?.config;
+      const summary = { ...defaultAiConfig, ...(configPayload ?? {}) };
+      setStoredAiConfig(summary);
+      setAiConfig(summary);
+    }
+
+    return true;
+  }, []);
+
+  const loadAiInsightsWithFallback = useCallback(async () => {
     setBusy("ai", true);
     setAiConfigLoading(true);
     try {
-      const [interactionsResult, configResult] = await Promise.all([
-        supabase
-          .from("ai_interactions")
-          .select("id, interaction_type, created_at, prompt, response, note_id")
-          .order("created_at", { ascending: false })
-          .limit(20),
-        supabase.functions.invoke("ai-config", { method: "GET" }),
-      ]);
-
-      if (interactionsResult.error) throw interactionsResult.error;
-      setAiInteractions(interactionsResult.data ?? []);
-
-      if (configResult.error) {
-        console.error("Failed to load AI configuration", configResult.error);
-      } else {
-        const configPayload = (configResult.data as { config?: Partial<AiConfigSummary> } | null)?.config;
-        const summary = { ...defaultAiConfig, ...(configPayload ?? {}) };
-        setStoredAiConfig(summary);
-        setAiConfig(summary);
-      }
+      return await loadAiInsights();
+    } catch (error) {
+      markOffline("AI insights", error);
+      setAiInteractions(deepClone(fallbackAiInteractions));
+      setStoredAiConfig(fallbackAiConfig);
+      setAiConfig(fallbackAiConfig);
+      return false;
     } finally {
       setBusy("ai", false);
       setAiConfigLoading(false);
     }
-  }, []);
+  }, [loadAiInsights, markOffline]);
 
   const loadEngagement = useCallback(async () => {
     setBusy("engagement", true);
-    const { data, error } = await supabase
-      .from("contact_submissions")
-      .select("*")
-      .order("created_at", { ascending: false })
-      .limit(50);
-    if (error) throw error;
-    setContacts(data ?? []);
-    setBusy("engagement", false);
-  }, []);
+    try {
+      const { data, error } = await supabase
+        .from("contact_submissions")
+        .select("*")
+        .order("created_at", { ascending: false })
+        .limit(50);
+      if (error) throw error;
+      setContacts(data ?? []);
+      return true;
+    } catch (error) {
+      markOffline("engagement signals", error);
+      setContacts(deepClone(fallbackContacts));
+      return false;
+    } finally {
+      setBusy("engagement", false);
+    }
+  }, [markOffline]);
 
   const loadAll = useCallback(async () => {
     setIsLoading(true);
     try {
-      await Promise.all([
+      const results = await Promise.all([
         loadContentSections(),
         loadButtons(),
         loadAnimationSettings(),
         loadLibrary(),
-        loadAiInsights(),
+        loadAiInsightsWithFallback(),
         loadEngagement(),
       ]);
+      const hadFailure = results.some((result) => result === false);
+      if (!hadFailure) {
+        setIsOfflineMode(false);
+        offlineToastShown.current = false;
+      }
     } catch (error) {
       console.error("Failed to load admin panel", error);
       toast({
@@ -339,7 +605,7 @@ export const AdminPanel = ({ onClose }: AdminPanelProps) => {
       setIsLoading(false);
     }
   }, [
-    loadAiInsights,
+    loadAiInsightsWithFallback,
     loadAnimationSettings,
     loadButtons,
     loadContentSections,
@@ -356,6 +622,27 @@ export const AdminPanel = ({ onClose }: AdminPanelProps) => {
     if (!hasConfigChanges) return;
     setAiConfigSaving(true);
     try {
+      if (isOfflineMode) {
+        const trimmedKey = aiApiKeyInput.trim();
+        const preview = trimmedKey ? `••••${trimmedKey.slice(-4)}` : storedAiConfig.keyPreview;
+        const timestamp = new Date().toISOString();
+        const summary: AiConfigSummary = {
+          provider: aiConfig.provider,
+          model: aiConfig.model,
+          keyPreview: preview,
+          updatedAt: timestamp,
+          updatedBy: "offline-admin",
+        };
+        setStoredAiConfig(summary);
+        setAiConfig(summary);
+        setAiApiKeyInput("");
+        toast({
+          title: "AI configuration staged locally",
+          description: offlineChangeMessage,
+        });
+        return;
+      }
+
       const payload: Record<string, string> = {
         provider: aiConfig.provider,
         model: aiConfig.model,
@@ -395,6 +682,10 @@ export const AdminPanel = ({ onClose }: AdminPanelProps) => {
 
   const handleSaveContent = async (sectionName: string) => {
     const payload = contentSections[sectionName] ?? {};
+    if (isOfflineMode) {
+      toast({ title: "Saved locally", description: offlineChangeMessage });
+      return;
+    }
     const { error } = await supabase
       .from("content_sections")
       .upsert({
@@ -414,6 +705,19 @@ export const AdminPanel = ({ onClose }: AdminPanelProps) => {
   };
 
   const handleSaveButton = async (button: ButtonMapping) => {
+    if (isOfflineMode) {
+      const timestamp = new Date().toISOString();
+      setButtonMappings((prev) => {
+        const exists = prev.some((item) => item.id === button.id);
+        const nextButton = { ...button, updated_at: timestamp };
+        if (exists) {
+          return prev.map((item) => (item.id === button.id ? nextButton : item));
+        }
+        return [...prev, nextButton];
+      });
+      toast({ title: "Button saved (demo)", description: offlineChangeMessage });
+      return;
+    }
     const { error } = await supabase
       .from("button_mappings")
       .upsert({ ...button, updated_at: new Date().toISOString() });
@@ -425,6 +729,14 @@ export const AdminPanel = ({ onClose }: AdminPanelProps) => {
   };
 
   const handleSaveAnimation = async (settingName: string, value: AnimationSetting["value"]) => {
+    if (isOfflineMode) {
+      setAnimationSettings((prev) => ({
+        ...prev,
+        [settingName]: value,
+      }));
+      toast({ title: "Animation updated (demo)", description: offlineChangeMessage });
+      return;
+    }
     const { error } = await supabase
       .from("animation_settings")
       .upsert({ setting_name: settingName, value, updated_at: new Date().toISOString() });
@@ -436,6 +748,14 @@ export const AdminPanel = ({ onClose }: AdminPanelProps) => {
   };
 
   const handleUpdateCourse = async (courseId: string, patch: Partial<CourseRow>) => {
+    if (isOfflineMode) {
+      const timestamp = new Date().toISOString();
+      setCourses((prev) =>
+        prev.map((course) => (course.id === courseId ? { ...course, ...patch, updated_at: timestamp } : course))
+      );
+      toast({ title: "Course updated (demo)", description: offlineChangeMessage });
+      return;
+    }
     const { error } = await supabase
       .from("courses")
       .update({ ...patch, updated_at: new Date().toISOString() })
@@ -450,6 +770,11 @@ export const AdminPanel = ({ onClose }: AdminPanelProps) => {
 
   const handleDeleteCourse = async (courseId: string) => {
     if (!confirm("Delete this course? Notes will remain but lose association.")) return;
+    if (isOfflineMode) {
+      setCourses((prev) => prev.filter((course) => course.id !== courseId));
+      toast({ title: "Course deleted (demo)", description: offlineChangeMessage });
+      return;
+    }
     const { error } = await supabase.from("courses").delete().eq("id", courseId);
     if (error) {
       toast({ title: "Failed to delete course", description: error.message, variant: "destructive" });
@@ -460,6 +785,14 @@ export const AdminPanel = ({ onClose }: AdminPanelProps) => {
   };
 
   const handleUpdateFolder = async (folderId: string, patch: Partial<FolderRow>) => {
+    if (isOfflineMode) {
+      const timestamp = new Date().toISOString();
+      setFolders((prev) =>
+        prev.map((folder) => (folder.id === folderId ? { ...folder, ...patch, updated_at: timestamp } : folder))
+      );
+      toast({ title: "Folder updated (demo)", description: offlineChangeMessage });
+      return;
+    }
     const { error } = await supabase
       .from("folders")
       .update({ ...patch, updated_at: new Date().toISOString() })
@@ -474,6 +807,11 @@ export const AdminPanel = ({ onClose }: AdminPanelProps) => {
 
   const handleDeleteFolder = async (folderId: string) => {
     if (!confirm("Delete this folder? Notes inside will become uncategorized.")) return;
+    if (isOfflineMode) {
+      setFolders((prev) => prev.filter((folder) => folder.id !== folderId));
+      toast({ title: "Folder deleted (demo)", description: offlineChangeMessage });
+      return;
+    }
     const { error } = await supabase.from("folders").delete().eq("id", folderId);
     if (error) {
       toast({ title: "Failed to delete folder", description: error.message, variant: "destructive" });
@@ -484,6 +822,12 @@ export const AdminPanel = ({ onClose }: AdminPanelProps) => {
   };
 
   const handleUpdateNote = async (noteId: string, patch: Partial<NoteRow>) => {
+    if (isOfflineMode) {
+      const timestamp = new Date().toISOString();
+      setNotes((prev) => prev.map((note) => (note.id === noteId ? { ...note, ...patch, updated_at: timestamp } : note)));
+      toast({ title: "Note updated (demo)", description: offlineChangeMessage });
+      return;
+    }
     const { error } = await supabase
       .from("notes")
       .update({ ...patch, updated_at: new Date().toISOString() })
@@ -499,6 +843,14 @@ export const AdminPanel = ({ onClose }: AdminPanelProps) => {
   const handleTestAiPrompt = async () => {
     setBusy("ai", true);
     setAiTestResponse("");
+    if (isOfflineMode) {
+      setAiTestResponse(
+        "[Demo] Kairos would highlight focus blocks for each deliverable and suggest the next best action once you reconnect."
+      );
+      toast({ title: "AI responded (demo)", description: offlineChangeMessage });
+      setBusy("ai", false);
+      return;
+    }
     const { data, error } = await supabase.functions.invoke("chat", {
       body: {
         messages: [
@@ -518,6 +870,14 @@ export const AdminPanel = ({ onClose }: AdminPanelProps) => {
   };
 
   const handleToggleContact = async (id: string, resolved: boolean) => {
+    if (isOfflineMode) {
+      setContacts((prev) => prev.map((contact) => (contact.id === id ? { ...contact, resolved } : contact)));
+      toast({
+        title: resolved ? "Marked resolved (demo)" : "Marked unresolved (demo)",
+        description: offlineChangeMessage,
+      });
+      return;
+    }
     const { error } = await supabase
       .from("contact_submissions")
       .update({ resolved })
@@ -593,6 +953,11 @@ export const AdminPanel = ({ onClose }: AdminPanelProps) => {
               <p className="text-muted-foreground max-w-xl mt-2">
                 Manage content, AI behaviour, and engagement data in real time. Every change is auditable and synced instantly.
               </p>
+              {isOfflineMode && (
+                <Badge className="mt-3 w-fit border-amber-500/40 bg-amber-500/10 text-amber-600">
+                  Offline demo data
+                </Badge>
+              )}
             </div>
             <div className="flex gap-2">
               <Button variant="outline" className="gap-2" onClick={loadAll} disabled={isLoading}>

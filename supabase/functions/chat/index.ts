@@ -1,4 +1,5 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
+import { resolveGeminiKey } from "../_shared/ai-config.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -28,10 +29,10 @@ serve(async (req) => {
       );
     }
 
-    const GEMINI_API_KEY = Deno.env.get('GEMINI_API_KEY');
+    const GEMINI_API_KEY = await resolveGeminiKey();
 
     if (!GEMINI_API_KEY) {
-      throw new Error('GEMINI_API_KEY is not configured');
+      throw new Error('Gemini API key is not configured');
     }
 
     const baseSystemPrompt = `You are Kairos, an AI academic companion designed to help students plan their courses and manage their academic life. You are knowledgeable, supportive, and provide practical guidance on course selection, scheduling, and academic success.`;

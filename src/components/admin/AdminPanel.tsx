@@ -49,6 +49,13 @@ type ButtonMapping = Database["public"]["Tables"]["button_mappings"]["Row"];
 type AnimationSetting = Database["public"]["Tables"]["animation_settings"]["Row"];
 type AiInteraction = Database["public"]["Tables"]["ai_interactions"]["Row"];
 type ContactSubmission = Database["public"]["Tables"]["contact_submissions"]["Row"];
+type AiConfigSummary = {
+  provider: string;
+  model: string;
+  keyPreview: string | null;
+  updatedAt: string | null;
+  updatedBy: string | null;
+};
 
 type LoadingState = {
   content: boolean;
@@ -79,6 +86,14 @@ const ensureSection = (sections: ContentSections, key: string, fallback: any) =>
   return sections[key];
 };
 
+const defaultAiConfig: AiConfigSummary = {
+  provider: "gemini",
+  model: "gemini-2.0-flash-lite",
+  keyPreview: null,
+  updatedAt: null,
+  updatedBy: null,
+};
+
 const toLocaleDate = (value: string | null) =>
   value ? new Date(value).toLocaleString() : "Not available";
 
@@ -94,6 +109,11 @@ export const AdminPanel = ({ onClose }: AdminPanelProps) => {
   const [notes, setNotes] = useState<NoteRow[]>([]);
   const [aiInteractions, setAiInteractions] = useState<AiInteraction[]>([]);
   const [contacts, setContacts] = useState<ContactSubmission[]>([]);
+  const [storedAiConfig, setStoredAiConfig] = useState<AiConfigSummary>(defaultAiConfig);
+  const [aiConfig, setAiConfig] = useState<AiConfigSummary>(defaultAiConfig);
+  const [aiApiKeyInput, setAiApiKeyInput] = useState("");
+  const [aiConfigLoading, setAiConfigLoading] = useState(false);
+  const [aiConfigSaving, setAiConfigSaving] = useState(false);
   const [featureFlags, setFeatureFlags] = useState<Record<string, boolean>>({
     aiWorkspace: true,
     adaptiveScheduler: true,
@@ -106,6 +126,14 @@ export const AdminPanel = ({ onClose }: AdminPanelProps) => {
   useEffect(() => {
     void loadAll();
   }, []);
+
+  const hasConfigChanges = useMemo(
+    () =>
+      aiApiKeyInput.trim().length > 0 ||
+      aiConfig.provider !== storedAiConfig.provider ||
+      aiConfig.model !== storedAiConfig.model,
+    [aiApiKeyInput, aiConfig.model, aiConfig.provider, storedAiConfig.model, storedAiConfig.provider]
+  );
 
   const setBusy = (key: keyof LoadingState, value: boolean) =>
     setLoading((prev) => ({ ...prev, [key]: value }));
@@ -236,14 +264,32 @@ export const AdminPanel = ({ onClose }: AdminPanelProps) => {
 
   const loadAiInsights = async () => {
     setBusy("ai", true);
-    const { data, error } = await supabase
-      .from("ai_interactions")
-      .select("id, interaction_type, created_at, prompt, response, note_id")
-      .order("created_at", { ascending: false })
-      .limit(20);
-    if (error) throw error;
-    setAiInteractions(data ?? []);
-    setBusy("ai", false);
+    setAiConfigLoading(true);
+    try {
+      const [interactionsResult, configResult] = await Promise.all([
+        supabase
+          .from("ai_interactions")
+          .select("id, interaction_type, created_at, prompt, response, note_id")
+          .order("created_at", { ascending: false })
+          .limit(20),
+        supabase.functions.invoke("ai-config", { method: "GET" }),
+      ]);
+
+      if (interactionsResult.error) throw interactionsResult.error;
+      setAiInteractions(interactionsResult.data ?? []);
+
+      if (configResult.error) {
+        console.error("Failed to load AI configuration", configResult.error);
+      } else {
+        const configPayload = (configResult.data as { config?: Partial<AiConfigSummary> } | null)?.config;
+        const summary = { ...defaultAiConfig, ...(configPayload ?? {}) };
+        setStoredAiConfig(summary);
+        setAiConfig(summary);
+      }
+    } finally {
+      setBusy("ai", false);
+      setAiConfigLoading(false);
+    }
   };
 
   const loadEngagement = async () => {
@@ -256,6 +302,47 @@ export const AdminPanel = ({ onClose }: AdminPanelProps) => {
     if (error) throw error;
     setContacts(data ?? []);
     setBusy("engagement", false);
+  };
+
+  const handleSaveAiConfig = async () => {
+    if (!hasConfigChanges) return;
+    setAiConfigSaving(true);
+    try {
+      const payload: Record<string, string> = {
+        provider: aiConfig.provider,
+        model: aiConfig.model,
+      };
+
+      if (aiApiKeyInput.trim().length > 0) {
+        payload.apiKey = aiApiKeyInput.trim();
+      }
+
+      const { data, error } = await supabase.functions.invoke("ai-config", { body: payload });
+
+      if (error) {
+        throw new Error(error.message ?? "Failed to save AI configuration");
+      }
+
+      const configPayload = (data as { config?: Partial<AiConfigSummary> } | null)?.config;
+      const summary = { ...defaultAiConfig, ...(configPayload ?? {}) };
+      setStoredAiConfig(summary);
+      setAiConfig(summary);
+      setAiApiKeyInput("");
+
+      toast({
+        title: "AI configuration updated",
+        description: "Gemini credentials refreshed successfully.",
+      });
+    } catch (error) {
+      console.error("Failed to save AI config", error);
+      toast({
+        title: "Failed to save AI configuration",
+        description: error instanceof Error ? error.message : "Unknown error",
+        variant: "destructive",
+      });
+    } finally {
+      setAiConfigSaving(false);
+    }
   };
 
   const handleSaveContent = async (sectionName: string) => {
@@ -1009,6 +1096,99 @@ export const AdminPanel = ({ onClose }: AdminPanelProps) => {
             </TabsContent>
 
             <TabsContent value="ai" className="space-y-6">
+              <Card className="p-6 border-border/70 bg-card/80 space-y-5">
+                <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
+                  <div className="space-y-2">
+                    <h3 className="text-lg font-semibold">Gemini credentials</h3>
+                    <p className="text-sm text-muted-foreground">
+                      Centralize the Gemini API key, provider, and model consumed across the workspace.
+                    </p>
+                    <div className="text-xs text-muted-foreground space-y-1">
+                      <p>Current key: {storedAiConfig.keyPreview ?? "not configured"}.</p>
+                      {storedAiConfig.updatedAt && (
+                        <p>
+                          Updated {toLocaleDate(storedAiConfig.updatedAt)}
+                          {storedAiConfig.updatedBy ? ` • by ${storedAiConfig.updatedBy}` : ""}
+                        </p>
+                      )}
+                    </div>
+                  </div>
+                  <div className="flex gap-2">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="gap-2"
+                      onClick={() => void loadAiInsights()}
+                      disabled={aiConfigLoading || aiConfigSaving}
+                    >
+                      {aiConfigLoading ? (
+                        <Loader2 className="w-4 h-4 animate-spin" />
+                      ) : (
+                        <RefreshCcw className="w-4 h-4" />
+                      )}
+                      Refresh
+                    </Button>
+                    <Button
+                      size="sm"
+                      className="gap-2"
+                      onClick={handleSaveAiConfig}
+                      disabled={!hasConfigChanges || aiConfigSaving || aiConfigLoading}
+                    >
+                      {aiConfigSaving ? (
+                        <Loader2 className="w-4 h-4 animate-spin" />
+                      ) : (
+                        <Save className="w-4 h-4" />
+                      )}
+                      Save configuration
+                    </Button>
+                  </div>
+                </div>
+                <div className="grid gap-4 md:grid-cols-2">
+                  <div className="space-y-2">
+                    <Label htmlFor="ai-provider">Provider</Label>
+                    <Input
+                      id="ai-provider"
+                      value={aiConfig.provider}
+                      onChange={(event) =>
+                        setAiConfig((prev) => ({ ...prev, provider: event.target.value }))
+                      }
+                      disabled={aiConfigLoading || aiConfigSaving}
+                    />
+                    <p className="text-xs text-muted-foreground">
+                      Defaults to Gemini; update if migrating to another vendor.
+                    </p>
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="ai-model">Model</Label>
+                    <Input
+                      id="ai-model"
+                      value={aiConfig.model}
+                      onChange={(event) =>
+                        setAiConfig((prev) => ({ ...prev, model: event.target.value }))
+                      }
+                      disabled={aiConfigLoading || aiConfigSaving}
+                    />
+                    <p className="text-xs text-muted-foreground">
+                      Applied for chat, formatting, and workspace assistants.
+                    </p>
+                  </div>
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="ai-api-key">Gemini API key</Label>
+                  <Input
+                    id="ai-api-key"
+                    type="password"
+                    placeholder="Paste a new key to rotate credentials"
+                    value={aiApiKeyInput}
+                    onChange={(event) => setAiApiKeyInput(event.target.value)}
+                    disabled={aiConfigSaving}
+                    autoComplete="off"
+                  />
+                  <p className="text-xs text-muted-foreground">
+                    Stored encrypted through Supabase edge functions. Leave blank to retain the existing key.
+                  </p>
+                </div>
+              </Card>
               <Card className="p-6 border-border/70 bg-card/80 space-y-4">
                 <div className="flex items-center justify-between">
                   <div>

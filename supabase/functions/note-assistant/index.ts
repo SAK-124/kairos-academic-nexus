@@ -1,5 +1,6 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { resolveGeminiKey } from "../_shared/ai-config.ts";
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -98,7 +99,14 @@ serve(async (req) => {
         throw new Error('Invalid action');
     }
 
-    const geminiApiKey = Deno.env.get('GEMINI_API_KEY');
+    const geminiApiKey = await resolveGeminiKey({ supabaseUrl, serviceRoleKey });
+
+    if (!geminiApiKey) {
+      return new Response(JSON.stringify({ error: 'Gemini API key is not configured' }), {
+        status: 500,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      });
+    }
     const model = action === 'summarize' || action === 'qa' 
       ? 'gemini-2.0-flash-lite' 
       : 'gemini-2.0-flash';

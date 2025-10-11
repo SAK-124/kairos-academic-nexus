@@ -249,7 +249,6 @@ const fallbackFolders: FolderRow[] = [
   {
     id: "demo-folder-week1",
     name: "Week 1 - Foundations",
-    description: "Lecture outlines and preparatory reading",
     user_id: "demo-user",
     course_id: "demo-course-ops",
     parent_id: null,
@@ -259,7 +258,6 @@ const fallbackFolders: FolderRow[] = [
   {
     id: "demo-folder-research",
     name: "Research prompts",
-    description: "Questions to explore with the AI workspace",
     user_id: "demo-user",
     course_id: "demo-course-ethics",
     parent_id: null,
@@ -384,13 +382,32 @@ export const AdminPanel = ({ onClose }: AdminPanelProps) => {
   const markOffline = useCallback(
     (scope: string, error: unknown) => {
       console.error(`Falling back to demo data for ${scope}`, error);
+      
+      // Distinguish between different error types
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      const isAuthError = errorMessage.toLowerCase().includes('jwt') || 
+                         errorMessage.toLowerCase().includes('auth');
+      const isRLSError = errorMessage.toLowerCase().includes('row-level security') || 
+                        errorMessage.toLowerCase().includes('policy');
+      const isPermissionError = errorMessage.toLowerCase().includes('permission') ||
+                               errorMessage.toLowerCase().includes('access denied');
+      
       setIsOfflineMode(true);
       if (!offlineToastShown.current) {
         offlineToastShown.current = true;
-        toast({
-          title: "Demo data loaded",
-          description: "Supabase was unreachable. The admin panel is running in offline preview mode.",
-        });
+        
+        let title = "Demo data loaded";
+        let description = "Supabase was unreachable. The admin panel is running in offline preview mode.";
+        
+        if (isAuthError) {
+          title = "Authentication required";
+          description = "Please log in to access live data. Showing demo data for now.";
+        } else if (isRLSError || isPermissionError) {
+          title = "Access denied";
+          description = "Admin privileges required. Showing demo data for preview.";
+        }
+        
+        toast({ title, description });
       }
     },
     [toast]
@@ -485,7 +502,7 @@ export const AdminPanel = ({ onClose }: AdminPanelProps) => {
             .limit(50),
           supabase
             .from("folders")
-            .select("id, name, description, user_id, updated_at, course_id, parent_id, created_at")
+            .select("id, name, user_id, updated_at, course_id, parent_id, created_at")
             .order("updated_at", { ascending: false })
             .limit(50),
           supabase
@@ -615,8 +632,57 @@ export const AdminPanel = ({ onClose }: AdminPanelProps) => {
   ]);
 
   useEffect(() => {
-    void loadAll();
-  }, [loadAll]);
+    const verifyAdminAccess = async () => {
+      try {
+        // Check if user is authenticated
+        const { data: { user }, error: userError } = await supabase.auth.getUser();
+        
+        if (userError || !user) {
+          toast({
+            title: "Not authenticated",
+            description: "Please log in to access the admin panel",
+            variant: "destructive"
+          });
+          onClose();
+          return;
+        }
+
+        // Verify admin role
+        const { data: roleData, error: roleError } = await supabase
+          .from("user_roles")
+          .select("role")
+          .eq("user_id", user.id)
+          .eq("role", "admin")
+          .maybeSingle();
+
+        if (roleError) {
+          console.error("Error checking admin role:", roleError);
+          markOffline("admin verification", roleError);
+        } else if (!roleData) {
+          toast({
+            title: "Access denied",
+            description: "You don't have admin privileges",
+            variant: "destructive"
+          });
+          onClose();
+          return;
+        }
+
+        // User is authenticated and has admin role, proceed to load data
+        void loadAll();
+      } catch (error) {
+        console.error("Admin verification failed:", error);
+        toast({
+          title: "Verification failed",
+          description: error instanceof Error ? error.message : "Could not verify admin access",
+          variant: "destructive"
+        });
+        onClose();
+      }
+    };
+
+    verifyAdminAccess();
+  }, [loadAll, toast, onClose, markOffline]);
 
   const handleSaveAiConfig = async () => {
     if (!hasConfigChanges) return;
@@ -1404,21 +1470,6 @@ export const AdminPanel = ({ onClose }: AdminPanelProps) => {
                               )
                             }
                             onBlur={(event) => handleUpdateFolder(folder.id, { name: event.target.value })}
-                          />
-                        </div>
-                        <div className="space-y-2">
-                          <Label>Description</Label>
-                          <Textarea
-                            rows={2}
-                            value={folder.description ?? ""}
-                            onChange={(event) =>
-                              setFolders((prev) =>
-                                prev.map((item) =>
-                                  item.id === folder.id ? { ...item, description: event.target.value } : item
-                                )
-                              )
-                            }
-                            onBlur={(event) => handleUpdateFolder(folder.id, { description: event.target.value })}
                           />
                         </div>
                       </Card>

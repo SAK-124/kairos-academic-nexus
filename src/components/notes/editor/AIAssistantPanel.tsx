@@ -1,12 +1,12 @@
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
 import { ScrollArea } from '@/components/ui/scroll-area';
-import { Sparkles, FileText, HelpCircle, Lightbulb, GraduationCap, Loader2 } from 'lucide-react';
+import { Sparkles, FileText, HelpCircle, Lightbulb, GraduationCap, Loader2, RefreshCcw, History } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
-import { FlashcardViewer } from '../FlashcardViewer';
-import { QuizViewer } from '../QuizViewer';
+import { AiClient } from '@/integrations/ai/client';
+import { MarkdownRenderer } from '@/components/MarkdownRenderer';
 
 interface AIAssistantPanelProps {
   noteId: string;
@@ -17,22 +17,15 @@ interface AIAssistantPanelProps {
   onGeneratingChange: (isGenerating: boolean) => void;
 }
 
+type CacheValue = string | { type: 'flashcards'; data: any[] } | { type: 'quiz'; data: any[] };
+
 export function AIAssistantPanel({ noteId, courseId, folderId, onShowFlashcards, onShowQuiz, onGeneratingChange }: AIAssistantPanelProps) {
   const [activeAction, setActiveAction] = useState<string | null>(null);
   const [userInput, setUserInput] = useState('');
   const [response, setResponse] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const { toast } = useToast();
-
-  const cleanJsonResponse = (response: string): string => {
-    let cleaned = response.trim();
-    if (cleaned.startsWith('```json')) {
-      cleaned = cleaned.replace(/^```json\s*/, '').replace(/\s*```$/, '');
-    } else if (cleaned.startsWith('```')) {
-      cleaned = cleaned.replace(/^```\s*/, '').replace(/\s*```$/, '');
-    }
-    return cleaned.trim();
-  };
+  const resultCache = useRef(new Map<string, CacheValue>());
 
   const quickActions = [
     { id: 'summarize', label: 'Summarize', icon: FileText, description: 'Get a concise summary' },
@@ -42,16 +35,43 @@ export function AIAssistantPanel({ noteId, courseId, folderId, onShowFlashcards,
     { id: 'quiz', label: 'Quiz Me', icon: Sparkles, description: 'Create 10 quiz questions' },
   ];
 
+  const hasCachedResult = (actionId: string) => {
+    const prefix = `${actionId}::`;
+    return Array.from(resultCache.current.keys()).some((key) => key.startsWith(prefix));
+  };
+
+  const setCachedResponse = (actionId: string, cacheKey: string, value: CacheValue) => {
+    resultCache.current.set(cacheKey, value);
+    if (actionId === 'flashcards' && value.type === 'flashcards') {
+      onShowFlashcards(value.data);
+      setResponse('Generated flashcards are ready in the study panel.');
+    } else if (actionId === 'quiz' && value.type === 'quiz') {
+      onShowQuiz(value.data);
+      setResponse('Generated quiz questions are available in the study panel.');
+    } else if (typeof value === 'string') {
+      setResponse(value);
+    }
+  };
+
   const handleAction = (actionId: string) => {
     setActiveAction(actionId);
     setResponse('');
     setUserInput('');
     if (actionId !== 'qa' && actionId !== 'explain') {
-      processAction(actionId);
+      void processAction(actionId);
     }
   };
 
   const processAction = async (actionId: string, refresh = false) => {
+    if (!noteId) return;
+
+    const cacheKey = `${actionId}::${userInput.trim() || '__default__'}`;
+    if (!refresh && resultCache.current.has(cacheKey)) {
+      const cached = resultCache.current.get(cacheKey)!;
+      setCachedResponse(actionId, cacheKey, cached);
+      return;
+    }
+
     setIsLoading(true);
     onGeneratingChange(true);
     try {
@@ -63,90 +83,112 @@ export function AIAssistantPanel({ noteId, courseId, folderId, onShowFlashcards,
 
       if (noteError) throw noteError;
 
-      const requestBody: any = {
-        noteId,
-        noteContent: noteData.plain_text,
-        action: actionId,
-        userInput: userInput,
-      };
-
-      // Removed refresh logic for now since we're managing flashcards/quiz at parent level
-
-      const { data, error } = await supabase.functions.invoke('note-assistant', {
-        body: requestBody,
-      });
-
-      if (error) throw error;
+      const noteContent = noteData?.plain_text || 'No note content provided yet.';
 
       if (actionId === 'flashcards') {
-        try {
-          const cleanedResponse = typeof data.response === 'string' ? cleanJsonResponse(data.response) : JSON.stringify(data.response);
-          const parsed = JSON.parse(cleanedResponse);
-          
-          if (parsed.error === 'NO_NEW_CONTENT') {
-            toast({
-              title: 'No new content',
-              description: 'There is no new content available to generate more flashcards.',
-            });
-            return;
-          }
+        const cachedValue = resultCache.current.get(cacheKey);
+        const response = await AiClient.generateFlashcards({
+          noteId,
+          noteContent,
+          existing: cachedValue && typeof cachedValue === 'object' && 'data' in cachedValue
+            ? (cachedValue as any).data
+            : undefined,
+          refresh,
+        });
 
-          const newFlashcards = Array.isArray(parsed) ? parsed : parsed.flashcards || [];
-          
-          // Save to database
-          const { data: { user } } = await supabase.auth.getUser();
-          if (user) {
-            await supabase.from('study_materials').insert({
-              user_id: user.id,
-              note_id: noteId,
-              course_id: noteData.course_id || courseId,
-              folder_id: noteData.folder_id || folderId,
-              type: 'flashcard',
-              content: newFlashcards,
-            });
-          }
+        const flashcards = Array.isArray((response as any)?.flashcards)
+          ? (response as any).flashcards
+          : Array.isArray(response)
+            ? response
+            : [];
 
-          onShowFlashcards(newFlashcards);
-        } catch (parseError) {
-          console.error('Error parsing flashcards:', parseError);
-          setResponse(data.response);
+        if (!flashcards.length) {
+          toast({
+            title: 'No flashcards generated',
+            description: 'Try selecting a different portion of your notes.',
+          });
+          return;
         }
-      } else if (actionId === 'quiz') {
-        try {
-          const cleanedResponse = typeof data.response === 'string' ? cleanJsonResponse(data.response) : JSON.stringify(data.response);
-          const parsed = JSON.parse(cleanedResponse);
-          
-          if (parsed.error === 'NO_NEW_CONTENT') {
-            toast({
-              title: 'No new content',
-              description: 'There is no new content available to generate more questions.',
-            });
-            return;
-          }
 
-          const newQuestions = Array.isArray(parsed) ? parsed : parsed.questions || [];
-          
-          // Save to database
-          const { data: { user } } = await supabase.auth.getUser();
-          if (user) {
-            await supabase.from('study_materials').insert({
-              user_id: user.id,
-              note_id: noteId,
-              course_id: noteData.course_id || courseId,
-              folder_id: noteData.folder_id || folderId,
-              type: 'quiz',
-              content: newQuestions,
-            });
-          }
-
-          onShowQuiz(newQuestions);
-        } catch (parseError) {
-          console.error('Error parsing quiz:', parseError);
-          setResponse(data.response);
+        const { data: { user } } = await supabase.auth.getUser();
+        if (user) {
+          await supabase.from('study_materials').insert({
+            user_id: user.id,
+            note_id: noteId,
+            course_id: noteData.course_id || courseId,
+            folder_id: noteData.folder_id || folderId,
+            type: 'flashcard',
+            content: flashcards,
+          });
         }
-      } else {
-        setResponse(data.response);
+
+        const cachePayload: CacheValue = { type: 'flashcards', data: flashcards };
+        setCachedResponse(actionId, cacheKey, cachePayload);
+        return;
       }
+
+      if (actionId === 'quiz') {
+        const cachedValue = resultCache.current.get(cacheKey);
+        const response = await AiClient.generateQuiz({
+          noteId,
+          noteContent,
+          existing: cachedValue && typeof cachedValue === 'object' && 'data' in cachedValue
+            ? (cachedValue as any).data
+            : undefined,
+          refresh,
+        });
+
+        const questions = Array.isArray((response as any)?.questions)
+          ? (response as any).questions
+          : Array.isArray(response)
+            ? response
+            : [];
+
+        if (!questions.length) {
+          toast({
+            title: 'No quiz generated',
+            description: 'Try refreshing or adjusting your notes.',
+          });
+          return;
+        }
+
+        const { data: { user } } = await supabase.auth.getUser();
+        if (user) {
+          await supabase.from('study_materials').insert({
+            user_id: user.id,
+            note_id: noteId,
+            course_id: noteData.course_id || courseId,
+            folder_id: noteData.folder_id || folderId,
+            type: 'quiz',
+            content: questions,
+          });
+        }
+
+        const cachePayload: CacheValue = { type: 'quiz', data: questions };
+        setCachedResponse(actionId, cacheKey, cachePayload);
+        return;
+      }
+
+      let textResponse = '';
+      switch (actionId) {
+        case 'summarize':
+          textResponse = await AiClient.summarizeNote({ noteId, noteContent });
+          break;
+        case 'qa':
+          textResponse = await AiClient.answerQuestion({ noteId, noteContent, question: userInput });
+          break;
+        case 'explain':
+          textResponse = await AiClient.explainConcept({ noteId, noteContent, concept: userInput });
+          break;
+        default:
+          textResponse = await AiClient.chat([
+            { role: 'system', content: 'You are Kairos, an academic assistant.' },
+            { role: 'user', content: userInput || 'Help me organize my notes.' },
+          ]);
+      }
+
+      const sanitized = textResponse?.trim() || 'No response generated yet.';
+      setCachedResponse(actionId, cacheKey, sanitized);
     } catch (error: any) {
       console.error('Error in AI assistant:', error);
       toast({
@@ -161,32 +203,48 @@ export function AIAssistantPanel({ noteId, courseId, folderId, onShowFlashcards,
   };
 
   return (
-    <div className="w-80 border-l border-border/40 bg-card/50 backdrop-blur flex flex-col">
-      <div className="p-4 border-b border-border/40">
-        <h3 className="font-semibold flex items-center gap-2">
-          <Sparkles className="w-5 h-5 text-primary" />
-          AI Assistant
-        </h3>
-        <p className="text-sm text-muted-foreground mt-1">
-          Enhance your notes with AI
-        </p>
+    <div className="w-full md:w-80 border-t md:border-t-0 md:border-l border-border/40 bg-card/50 backdrop-blur flex flex-col">
+      <div className="p-4 border-b border-border/40 flex items-center justify-between gap-2">
+        <div>
+          <h3 className="font-semibold flex items-center gap-2">
+            <Sparkles className="w-5 h-5 text-primary" />
+            AI Assistant
+          </h3>
+          <p className="text-sm text-muted-foreground mt-1">
+            Enhance your notes with AI
+          </p>
+        </div>
+        {activeAction && (
+          <Button
+            variant="ghost"
+            size="icon"
+            className="h-8 w-8"
+            onClick={() => void processAction(activeAction, true)}
+            disabled={isLoading}
+          >
+            <RefreshCcw className="w-4 h-4" />
+          </Button>
+        )}
       </div>
 
-      <ScrollArea className="flex-1 p-4">
-        <div className="space-y-2 mb-6">
+      <ScrollArea className="flex-1 p-4 space-y-4">
+        <div className="grid grid-cols-1 gap-2">
           {quickActions.map((action) => (
             <Button
               key={action.id}
               variant={activeAction === action.id ? 'default' : 'outline'}
               className="w-full justify-start"
               onClick={() => handleAction(action.id)}
-              disabled={isLoading}
+              disabled={isLoading && activeAction !== action.id}
             >
               <action.icon className="w-4 h-4 mr-2" />
               <div className="flex-1 text-left">
                 <div>{action.label}</div>
                 <div className="text-xs text-muted-foreground">{action.description}</div>
               </div>
+              {hasCachedResult(action.id) && (
+                <History className="w-3 h-3 text-muted-foreground" />
+              )}
             </Button>
           ))}
         </div>
@@ -197,15 +255,15 @@ export function AIAssistantPanel({ noteId, courseId, folderId, onShowFlashcards,
               value={userInput}
               onChange={(e) => setUserInput(e.target.value)}
               placeholder={
-                activeAction === 'qa' 
+                activeAction === 'qa'
                   ? 'Ask a question about your notes...'
                   : 'What concept would you like explained?'
               }
               rows={4}
             />
-            <Button 
-              className="w-full" 
-              onClick={() => processAction(activeAction)}
+            <Button
+              className="w-full"
+              onClick={() => void processAction(activeAction, false)}
               disabled={!userInput.trim() || isLoading}
             >
               {isLoading ? (
@@ -221,8 +279,8 @@ export function AIAssistantPanel({ noteId, courseId, folderId, onShowFlashcards,
         )}
 
         {response && (
-          <div className="mt-4 p-4 rounded-lg bg-muted/50 border border-border/40">
-            <pre className="whitespace-pre-wrap text-sm">{response}</pre>
+          <div className="mt-2 p-4 rounded-lg bg-muted/50 border border-border/40">
+            <MarkdownRenderer content={response} className="text-sm" />
           </div>
         )}
 

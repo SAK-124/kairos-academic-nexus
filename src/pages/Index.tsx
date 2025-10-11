@@ -11,7 +11,7 @@ import { TestimonialSection } from "@/components/landing/TestimonialSection";
 import { FAQSection } from "@/components/landing/FAQSection";
 import { PricingSection } from "@/components/landing/PricingSection";
 import { AuthModal } from "@/components/AuthModal";
-import { EnhancedAdminPanel } from "@/components/EnhancedAdminPanel";
+import { AdminPanel } from "@/components/admin/AdminPanel";
 import { AISearchBar } from "@/components/AISearchBar";
 import { Navigation } from "@/components/Navigation";
 import { supabase } from "@/integrations/supabase/client";
@@ -125,7 +125,7 @@ const Index = () => {
 
       <AISearchBar />
       {showAuthModal && <AuthModal onClose={() => setShowAuthModal(false)} />}
-      {showAdminPanel && <EnhancedAdminPanel onClose={() => setShowAdminPanel(false)} />}
+      {showAdminPanel && <AdminPanel onClose={() => setShowAdminPanel(false)} />}
     </div>
   );
 };

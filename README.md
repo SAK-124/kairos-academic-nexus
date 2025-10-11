@@ -60,6 +60,20 @@ This project is built with:
 - shadcn-ui
 - Tailwind CSS
 
+## Supabase Edge function configuration
+
+Edge functions now require the Supabase service role key so they can perform privileged operations while still enforcing end-user access controls. Provision the secret in Supabase and your local environment before deploying or testing:
+
+```sh
+# Store the secret for deployed edge functions
+supabase secrets set SUPABASE_SERVICE_ROLE_KEY=your_service_role_key
+
+# For local testing add to your environment (e.g. .env)
+SUPABASE_SERVICE_ROLE_KEY=your_service_role_key
+```
+
+The functions continue to validate the `Authorization` header and scope all queries to the authenticated user, so make sure RLS policies remain aligned with those expectations before redeploying.
+
 ## How can I deploy this project?
 
 Simply open [Lovable](https://lovable.dev/projects/e40890e5-54d0-40c7-a923-153cab993e35) and click on Share -> Publish.

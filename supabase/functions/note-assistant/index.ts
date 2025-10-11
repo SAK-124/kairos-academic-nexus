@@ -13,16 +13,47 @@ serve(async (req) => {
 
   try {
     const { noteId, noteContent, action, userInput, refresh, existingContent } = await req.json();
-    const authHeader = req.headers.get('Authorization')!;
-    
-    const supabaseClient = createClient(
-      Deno.env.get('SUPABASE_URL')!,
-      Deno.env.get('SUPABASE_ANON_KEY')!,
-      { global: { headers: { Authorization: authHeader } } }
-    );
+    const authHeader = req.headers.get('Authorization');
 
-    const { data: { user } } = await supabaseClient.auth.getUser();
-    if (!user) {
+    if (!authHeader) {
+      return new Response(JSON.stringify({ error: 'Unauthorized' }), {
+        status: 401,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      });
+    }
+
+    const supabaseUrl = Deno.env.get('SUPABASE_URL');
+    const serviceRoleKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY');
+
+    if (!supabaseUrl || !serviceRoleKey) {
+      console.error('Missing Supabase configuration');
+      return new Response(JSON.stringify({ error: 'Server configuration error' }), {
+        status: 500,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      });
+    }
+
+    const jwt = authHeader.match(/^Bearer\s+(.*)$/i)?.[1]?.trim();
+    if (!jwt) {
+      return new Response(JSON.stringify({ error: 'Unauthorized' }), {
+        status: 401,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      });
+    }
+
+    const supabaseClient = createClient(supabaseUrl, serviceRoleKey, {
+      auth: {
+        autoRefreshToken: false,
+        persistSession: false,
+      },
+    });
+
+    const {
+      data: { user },
+      error: userError,
+    } = await supabaseClient.auth.getUser(jwt);
+
+    if (userError || !user) {
       return new Response(JSON.stringify({ error: 'Unauthorized' }), {
         status: 401,
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
@@ -104,7 +135,7 @@ serve(async (req) => {
     const aiResponse = data.candidates?.[0]?.content?.parts?.[0]?.text || 'No response generated';
 
     // Log interaction
-    await supabaseClient.from('ai_interactions').insert({
+    const { error: logError } = await supabaseClient.from('ai_interactions').insert({
       user_id: user.id,
       note_id: noteId,
       interaction_type: action,
@@ -112,6 +143,10 @@ serve(async (req) => {
       response: aiResponse,
       model: model,
     });
+
+    if (logError) {
+      console.error('Failed to log AI interaction:', logError.message);
+    }
 
     return new Response(JSON.stringify({ response: aiResponse }), {
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },

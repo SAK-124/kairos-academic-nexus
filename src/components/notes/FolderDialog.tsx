@@ -60,8 +60,9 @@ export function FolderDialog({ open, onOpenChange, onSuccess, preselectedCourseI
     try {
       const { data, error } = await supabase
         .from('folders')
-        .select('*')
-        .order('name');
+        .select('id,name,parent_id,course_id')
+        .order('name')
+        .range(0, 199);
 
       if (error) throw error;
       setFolders(data || []);
@@ -75,7 +76,8 @@ export function FolderDialog({ open, onOpenChange, onSuccess, preselectedCourseI
       const { data, error } = await supabase
         .from('courses')
         .select('id, name')
-        .order('name');
+        .order('name')
+        .range(0, 199);
 
       if (error) throw error;
       setCourses(data || []);

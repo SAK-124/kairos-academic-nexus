@@ -123,7 +123,7 @@ serve(async (req) => {
     // Build PostgreSQL query
     let dbQuery = supabaseClient
       .from('notes')
-      .select('*')
+      .select('id,title,plain_text,tags,is_favorite,updated_at,course_id,folder_id')
       .eq('user_id', user.id);
 
     // Full-text search

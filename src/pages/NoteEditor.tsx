@@ -39,7 +39,7 @@ export default function NoteEditor() {
       setLoading(true);
       const { data, error } = await supabase
         .from('notes')
-        .select('*')
+        .select('id,title,content,plain_text,tags,is_favorite,course_id,folder_id,updated_at')
         .eq('id', id)
         .single();
 
@@ -76,8 +76,18 @@ export default function NoteEditor() {
     if (!session) return;
 
     const [coursesData, foldersData] = await Promise.all([
-      supabase.from('courses').select('*').eq('user_id', session.user.id),
-      supabase.from('folders').select('*').eq('user_id', session.user.id),
+      supabase
+        .from('courses')
+        .select('id,name,code,color,updated_at,user_id')
+        .eq('user_id', session.user.id)
+        .order('name')
+        .range(0, 199),
+      supabase
+        .from('folders')
+        .select('id,name,parent_id,course_id,updated_at,user_id,description')
+        .eq('user_id', session.user.id)
+        .order('name')
+        .range(0, 199),
     ]);
 
     if (coursesData.data) setCourses(coursesData.data as CourseRow[]);

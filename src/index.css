@@ -340,3 +340,17 @@ All colors MUST be HSL.
     animation: splashGlow 300ms ease-in-out 600ms;
   }
 }
+
+@media (prefers-reduced-motion: reduce) {
+  .animate-fade-in,
+  .animate-dissolve,
+  .animate-slide-up,
+  .animate-scale-in,
+  .animate-pulsate,
+  .animate-float,
+  .animate-shimmer,
+  .animate-scroll,
+  .gradient-orb {
+    animation: none !important;
+  }
+}

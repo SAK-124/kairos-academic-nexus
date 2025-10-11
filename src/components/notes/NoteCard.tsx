@@ -1,3 +1,4 @@
+import { memo, useCallback } from 'react';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Star, Trash2, FolderOpen, Folder } from 'lucide-react';
@@ -14,7 +15,6 @@ import {
 } from '@/components/ui/context-menu';
 import type { NoteRow } from '@/hooks/useNotesWorkspace';
 import { cn } from '@/lib/utils';
-import { useCallback } from 'react';
 
 interface NoteCardProps {
   note: Pick<NoteRow, 'id' | 'title' | 'plain_text' | 'tags' | 'is_favorite' | 'updated_at'>;
@@ -32,7 +32,7 @@ interface NoteCardProps {
   onDragEnd?: () => void;
 }
 
-export function NoteCard({
+export const NoteCard = memo(function NoteCard({
   note,
   onClick,
   onFavorite,
@@ -205,4 +205,4 @@ export function NoteCard({
       </ContextMenuContent>
     </ContextMenu>
   );
-}
+});

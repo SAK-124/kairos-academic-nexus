@@ -12,6 +12,15 @@ import {
   SheetContent,
   SheetTrigger,
 } from "@/components/ui/sheet";
+import { prefetch, prefetchModule } from "@/lib/prefetch";
+
+const routePrefetchers: Record<string, () => Promise<void>> = {
+  "/notes": () => prefetchModule(() => import("@/pages/Notes")),
+  "/scheduler": () => prefetchModule(() => import("@/pages/Scheduler")),
+  "/privacy": () => prefetchModule(() => import("@/pages/PrivacyPolicy")),
+  "/terms": () => prefetchModule(() => import("@/pages/TermsOfService")),
+  "/contact": () => prefetchModule(() => import("@/pages/Contact")),
+};
 
 interface NavigationProps {
   user: User | null;
@@ -25,6 +34,12 @@ export const Navigation = ({ user, isAdmin, onAdminClick, onLoginClick }: Naviga
   const location = useLocation();
   const { toast } = useToast();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+
+  const prefetchRoute = (route?: string) => {
+    if (!route) return;
+    prefetch(route);
+    void routePrefetchers[route]?.();
+  };
 
   const handleSignOut = async () => {
     const { error } = await supabase.auth.signOut();
@@ -55,6 +70,7 @@ export const Navigation = ({ user, isAdmin, onAdminClick, onLoginClick }: Naviga
   };
 
   const handleNotesClick = () => {
+    prefetchRoute("/notes");
     if (!user) {
       toast({
         title: 'Authentication Required',
@@ -69,7 +85,7 @@ export const Navigation = ({ user, isAdmin, onAdminClick, onLoginClick }: Naviga
 
   const navLinks = [
     { label: "Home", id: "home" },
-    { label: "Notes", action: handleNotesClick },
+    { label: "Notes", action: handleNotesClick, prefetchRoute: "/notes" },
     { label: "Features", id: "features" },
     { label: "Pricing", id: "pricing" },
     { label: "FAQs", id: "faqs" },
@@ -98,6 +114,7 @@ export const Navigation = ({ user, isAdmin, onAdminClick, onLoginClick }: Naviga
                   scrollToSection(link.id);
                 }
               }}
+              onMouseEnter={() => prefetchRoute(link.prefetchRoute)}
               className="text-sm font-medium text-muted-foreground hover:text-foreground transition-colors"
             >
               {link.label}
@@ -173,6 +190,7 @@ export const Navigation = ({ user, isAdmin, onAdminClick, onLoginClick }: Naviga
                           scrollToSection(link.id);
                         }
                       }}
+                      onMouseEnter={() => prefetchRoute(link.prefetchRoute)}
                       className="text-left text-lg font-medium text-muted-foreground hover:text-foreground transition-colors"
                     >
                       {link.label}

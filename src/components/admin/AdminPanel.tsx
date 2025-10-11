@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useVirtualizer } from "@tanstack/react-virtual";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -6,7 +7,6 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
-import { ScrollArea } from "@/components/ui/scroll-area";
 import { Separator } from "@/components/ui/separator";
 import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
@@ -367,6 +367,31 @@ export const AdminPanel = ({ onClose }: AdminPanelProps) => {
   const [aiTestResponse, setAiTestResponse] = useState("");
   const [isOfflineMode, setIsOfflineMode] = useState(false);
   const offlineToastShown = useRef(false);
+
+  const coursesParentRef = useRef<HTMLDivElement>(null);
+  const foldersParentRef = useRef<HTMLDivElement>(null);
+  const notesParentRef = useRef<HTMLDivElement>(null);
+
+  const coursesVirtualizer = useVirtualizer({
+    count: courses.length,
+    getScrollElement: () => coursesParentRef.current,
+    estimateSize: () => 240,
+    overscan: 6,
+  });
+
+  const foldersVirtualizer = useVirtualizer({
+    count: folders.length,
+    getScrollElement: () => foldersParentRef.current,
+    estimateSize: () => 200,
+    overscan: 6,
+  });
+
+  const notesVirtualizer = useVirtualizer({
+    count: notes.length,
+    getScrollElement: () => notesParentRef.current,
+    estimateSize: () => 260,
+    overscan: 6,
+  });
 
   const hasConfigChanges = useMemo(
     () =>
@@ -1387,54 +1412,64 @@ export const AdminPanel = ({ onClose }: AdminPanelProps) => {
                     <p className="text-sm text-muted-foreground">Rename or remove study plans across accounts.</p>
                   </div>
                 </div>
-                <ScrollArea className="h-64 pr-2">
-                  <div className="space-y-3">
-                    {courses.map((course) => (
-                      <Card key={course.id} className="p-4 border-border/60 bg-muted/30 space-y-3">
-                        <div className="flex items-center justify-between">
-                          <div className="space-y-1">
-                            <p className="text-sm font-semibold">{course.name || "Untitled course"}</p>
-                            <p className="text-xs text-muted-foreground">User: {course.user_id}</p>
-                            <p className="text-xs text-muted-foreground">Updated {toLocaleDate(course.updated_at)}</p>
-                          </div>
-                          <Button variant="ghost" size="icon" onClick={() => handleDeleteCourse(course.id)}>
-                            <Trash2 className="w-4 h-4 text-destructive" />
-                          </Button>
+                <div ref={coursesParentRef} className="h-64 overflow-y-auto pr-2">
+                  <div style={{ height: coursesVirtualizer.getTotalSize(), position: "relative" }}>
+                    {coursesVirtualizer.getVirtualItems().map((virtualRow) => {
+                      const course = courses[virtualRow.index];
+                      if (!course) return null;
+                      return (
+                        <div
+                          key={virtualRow.key}
+                          className="absolute top-0 left-0 w-full pb-3"
+                          style={{ transform: `translateY(${virtualRow.start}px)` }}
+                        >
+                          <Card className="p-4 border-border/60 bg-muted/30 space-y-3">
+                            <div className="flex items-center justify-between">
+                              <div className="space-y-1">
+                                <p className="text-sm font-semibold">{course.name || "Untitled course"}</p>
+                                <p className="text-xs text-muted-foreground">User: {course.user_id}</p>
+                                <p className="text-xs text-muted-foreground">Updated {toLocaleDate(course.updated_at)}</p>
+                              </div>
+                              <Button variant="ghost" size="icon" onClick={() => handleDeleteCourse(course.id)}>
+                                <Trash2 className="w-4 h-4 text-destructive" />
+                              </Button>
+                            </div>
+                            <div className="grid gap-3 md:grid-cols-2">
+                              <div className="space-y-2">
+                                <Label>Name</Label>
+                                <Input
+                                  value={course.name ?? ""}
+                                  onChange={(event) =>
+                                    setCourses((prev) =>
+                                      prev.map((item) =>
+                                        item.id === course.id ? { ...item, name: event.target.value } : item
+                                      )
+                                    )
+                                  }
+                                  onBlur={(event) => handleUpdateCourse(course.id, { name: event.target.value })}
+                                />
+                              </div>
+                              <div className="space-y-2">
+                                <Label>Code</Label>
+                                <Input
+                                  value={course.code ?? ""}
+                                  onChange={(event) =>
+                                    setCourses((prev) =>
+                                      prev.map((item) =>
+                                        item.id === course.id ? { ...item, code: event.target.value } : item
+                                      )
+                                    )
+                                  }
+                                  onBlur={(event) => handleUpdateCourse(course.id, { code: event.target.value })}
+                                />
+                              </div>
+                            </div>
+                          </Card>
                         </div>
-                        <div className="grid gap-3 md:grid-cols-2">
-                          <div className="space-y-2">
-                            <Label>Name</Label>
-                            <Input
-                              value={course.name ?? ""}
-                              onChange={(event) =>
-                                setCourses((prev) =>
-                                  prev.map((item) =>
-                                    item.id === course.id ? { ...item, name: event.target.value } : item
-                                  )
-                                )
-                              }
-                              onBlur={(event) => handleUpdateCourse(course.id, { name: event.target.value })}
-                            />
-                          </div>
-                          <div className="space-y-2">
-                            <Label>Code</Label>
-                            <Input
-                              value={course.code ?? ""}
-                              onChange={(event) =>
-                                setCourses((prev) =>
-                                  prev.map((item) =>
-                                    item.id === course.id ? { ...item, code: event.target.value } : item
-                                  )
-                                )
-                              }
-                              onBlur={(event) => handleUpdateCourse(course.id, { code: event.target.value })}
-                            />
-                          </div>
-                        </div>
-                      </Card>
-                    ))}
+                      );
+                    })}
                   </div>
-                </ScrollArea>
+                </div>
               </Card>
 
               <Card className="p-6 border-border/70 bg-card/80 space-y-6">
@@ -1444,38 +1479,48 @@ export const AdminPanel = ({ onClose }: AdminPanelProps) => {
                     <p className="text-sm text-muted-foreground">Manage note collections and descriptions.</p>
                   </div>
                 </div>
-                <ScrollArea className="h-64 pr-2">
-                  <div className="space-y-3">
-                    {folders.map((folder) => (
-                      <Card key={folder.id} className="p-4 border-border/60 bg-muted/30 space-y-3">
-                        <div className="flex items-center justify-between">
-                          <div className="space-y-1">
-                            <p className="text-sm font-semibold">{folder.name || "Untitled folder"}</p>
-                            <p className="text-xs text-muted-foreground">User: {folder.user_id}</p>
-                            <p className="text-xs text-muted-foreground">Updated {toLocaleDate(folder.updated_at)}</p>
-                          </div>
-                          <Button variant="ghost" size="icon" onClick={() => handleDeleteFolder(folder.id)}>
-                            <Trash2 className="w-4 h-4 text-destructive" />
-                          </Button>
+                <div ref={foldersParentRef} className="h-64 overflow-y-auto pr-2">
+                  <div style={{ height: foldersVirtualizer.getTotalSize(), position: "relative" }}>
+                    {foldersVirtualizer.getVirtualItems().map((virtualRow) => {
+                      const folder = folders[virtualRow.index];
+                      if (!folder) return null;
+                      return (
+                        <div
+                          key={virtualRow.key}
+                          className="absolute top-0 left-0 w-full pb-3"
+                          style={{ transform: `translateY(${virtualRow.start}px)` }}
+                        >
+                          <Card className="p-4 border-border/60 bg-muted/30 space-y-3">
+                            <div className="flex items-center justify-between">
+                              <div className="space-y-1">
+                                <p className="text-sm font-semibold">{folder.name || "Untitled folder"}</p>
+                                <p className="text-xs text-muted-foreground">User: {folder.user_id}</p>
+                                <p className="text-xs text-muted-foreground">Updated {toLocaleDate(folder.updated_at)}</p>
+                              </div>
+                              <Button variant="ghost" size="icon" onClick={() => handleDeleteFolder(folder.id)}>
+                                <Trash2 className="w-4 h-4 text-destructive" />
+                              </Button>
+                            </div>
+                            <div className="space-y-2">
+                              <Label>Name</Label>
+                              <Input
+                                value={folder.name ?? ""}
+                                onChange={(event) =>
+                                  setFolders((prev) =>
+                                    prev.map((item) =>
+                                      item.id === folder.id ? { ...item, name: event.target.value } : item
+                                    )
+                                  )
+                                }
+                                onBlur={(event) => handleUpdateFolder(folder.id, { name: event.target.value })}
+                              />
+                            </div>
+                          </Card>
                         </div>
-                        <div className="space-y-2">
-                          <Label>Name</Label>
-                          <Input
-                            value={folder.name ?? ""}
-                            onChange={(event) =>
-                              setFolders((prev) =>
-                                prev.map((item) =>
-                                  item.id === folder.id ? { ...item, name: event.target.value } : item
-                                )
-                              )
-                            }
-                            onBlur={(event) => handleUpdateFolder(folder.id, { name: event.target.value })}
-                          />
-                        </div>
-                      </Card>
-                    ))}
+                      );
+                    })}
                   </div>
-                </ScrollArea>
+                </div>
               </Card>
 
               <Card className="p-6 border-border/70 bg-card/80 space-y-6">
@@ -1485,81 +1530,91 @@ export const AdminPanel = ({ onClose }: AdminPanelProps) => {
                     <p className="text-sm text-muted-foreground">Quickly retitle and reassign notes between folders or courses.</p>
                   </div>
                 </div>
-                <ScrollArea className="h-80 pr-2">
-                  <div className="space-y-3">
-                    {notes.map((note) => (
-                      <Card key={note.id} className="p-4 border-border/60 bg-muted/30 space-y-4">
-                        <div className="flex items-center justify-between">
-                          <div className="space-y-1">
-                            <p className="font-medium">{note.title || "Untitled note"}</p>
-                            <div className="flex items-center gap-2 text-xs text-muted-foreground">
-                              <Activity className="w-3 h-3" /> Updated {toLocaleDate(note.updated_at)}
+                <div ref={notesParentRef} className="h-80 overflow-y-auto pr-2">
+                  <div style={{ height: notesVirtualizer.getTotalSize(), position: "relative" }}>
+                    {notesVirtualizer.getVirtualItems().map((virtualRow) => {
+                      const note = notes[virtualRow.index];
+                      if (!note) return null;
+                      return (
+                        <div
+                          key={virtualRow.key}
+                          className="absolute top-0 left-0 w-full pb-3"
+                          style={{ transform: `translateY(${virtualRow.start}px)` }}
+                        >
+                          <Card className="p-4 border-border/60 bg-muted/30 space-y-4">
+                            <div className="flex items-center justify-between">
+                              <div className="space-y-1">
+                                <p className="font-medium">{note.title || "Untitled note"}</p>
+                                <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                                  <Activity className="w-3 h-3" /> Updated {toLocaleDate(note.updated_at)}
+                                </div>
+                              </div>
+                              <Badge variant="secondary">User: {note.user_id}</Badge>
                             </div>
-                          </div>
-                          <Badge variant="secondary">User: {note.user_id}</Badge>
+                            <div className="space-y-2">
+                              <Label>Title</Label>
+                              <Input
+                                value={note.title ?? ""}
+                                onChange={(event) =>
+                                  setNotes((prev) =>
+                                    prev.map((item) =>
+                                      item.id === note.id ? { ...item, title: event.target.value } : item
+                                    )
+                                  )
+                                }
+                                onBlur={(event) => handleUpdateNote(note.id, { title: event.target.value })}
+                              />
+                            </div>
+                            <div className="grid gap-4 md:grid-cols-2">
+                              <div className="space-y-2">
+                                <Label>Course</Label>
+                                <Select
+                                  value={note.course_id ?? ""}
+                                  onValueChange={(value) =>
+                                    handleUpdateNote(note.id, { course_id: value || null })
+                                  }
+                                >
+                                  <SelectTrigger>
+                                    <SelectValue placeholder="Unassigned" />
+                                  </SelectTrigger>
+                                  <SelectContent>
+                                    <SelectItem value="">Unassigned</SelectItem>
+                                    {courses.map((course) => (
+                                      <SelectItem key={course.id} value={course.id}>
+                                        {course.name || course.id}
+                                      </SelectItem>
+                                    ))}
+                                  </SelectContent>
+                                </Select>
+                              </div>
+                              <div className="space-y-2">
+                                <Label>Folder</Label>
+                                <Select
+                                  value={note.folder_id ?? ""}
+                                  onValueChange={(value) =>
+                                    handleUpdateNote(note.id, { folder_id: value || null })
+                                  }
+                                >
+                                  <SelectTrigger>
+                                    <SelectValue placeholder="Unassigned" />
+                                  </SelectTrigger>
+                                  <SelectContent>
+                                    <SelectItem value="">Unassigned</SelectItem>
+                                    {folders.map((folder) => (
+                                      <SelectItem key={folder.id} value={folder.id}>
+                                        {folder.name || folder.id}
+                                      </SelectItem>
+                                    ))}
+                                  </SelectContent>
+                                </Select>
+                              </div>
+                            </div>
+                          </Card>
                         </div>
-                        <div className="space-y-2">
-                          <Label>Title</Label>
-                          <Input
-                            value={note.title ?? ""}
-                            onChange={(event) =>
-                              setNotes((prev) =>
-                                prev.map((item) =>
-                                  item.id === note.id ? { ...item, title: event.target.value } : item
-                                )
-                              )
-                            }
-                            onBlur={(event) => handleUpdateNote(note.id, { title: event.target.value })}
-                          />
-                        </div>
-                        <div className="grid gap-4 md:grid-cols-2">
-                          <div className="space-y-2">
-                            <Label>Course</Label>
-                            <Select
-                              value={note.course_id ?? ""}
-                              onValueChange={(value) =>
-                                handleUpdateNote(note.id, { course_id: value || null })
-                              }
-                            >
-                              <SelectTrigger>
-                                <SelectValue placeholder="Unassigned" />
-                              </SelectTrigger>
-                              <SelectContent>
-                                <SelectItem value="">Unassigned</SelectItem>
-                                {courses.map((course) => (
-                                  <SelectItem key={course.id} value={course.id}>
-                                    {course.name || course.id}
-                                  </SelectItem>
-                                ))}
-                              </SelectContent>
-                            </Select>
-                          </div>
-                          <div className="space-y-2">
-                            <Label>Folder</Label>
-                            <Select
-                              value={note.folder_id ?? ""}
-                              onValueChange={(value) =>
-                                handleUpdateNote(note.id, { folder_id: value || null })
-                              }
-                            >
-                              <SelectTrigger>
-                                <SelectValue placeholder="Unassigned" />
-                              </SelectTrigger>
-                              <SelectContent>
-                                <SelectItem value="">Unassigned</SelectItem>
-                                {folders.map((folder) => (
-                                  <SelectItem key={folder.id} value={folder.id}>
-                                    {folder.name || folder.id}
-                                  </SelectItem>
-                                ))}
-                              </SelectContent>
-                            </Select>
-                          </div>
-                        </div>
-                      </Card>
-                    ))}
+                      );
+                    })}
                   </div>
-                </ScrollArea>
+                </div>
               </Card>
             </TabsContent>
 

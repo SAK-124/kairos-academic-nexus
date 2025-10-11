@@ -4,9 +4,12 @@
   "version": "0.0.0",
   "type": "module",
   "scripts": {
-    "dev": "vite",
+    "analyze": "vite build && npx rollup-plugin-visualizer dist/stats.html --template treemap --gzip-size --brotli-size",
+    "postanalyze": "node -e \"const fs=require('node:fs');if(!fs.existsSync('stats.html')){console.error('stats.html not generated');process.exit(1);}fs.mkdirSync('dist',{recursive:true});fs.renameSync('stats.html','dist/stats.html');\"",
     "build": "vite build",
     "build:dev": "vite build --mode development",
+    "dev": "vite",
+    "lhci": "lhci autorun",
     "lint": "eslint .",
     "preview": "vite preview"
   },
@@ -41,6 +44,7 @@
     "@radix-ui/react-tooltip": "^1.2.7",
     "@supabase/supabase-js": "^2.58.0",
     "@tanstack/react-query": "^5.83.0",
+    "@tanstack/react-virtual": "^3.11.2",
     "@tiptap/extension-code-block-lowlight": "^3.6.6",
     "@tiptap/extension-image": "^3.6.6",
     "@tiptap/extension-link": "^3.6.6",
@@ -76,11 +80,12 @@
   },
   "devDependencies": {
     "@eslint/js": "^9.32.0",
+    "@lhci/cli": "^0.14.0",
     "@tailwindcss/typography": "^0.5.16",
     "@types/node": "^22.16.5",
     "@types/react": "^18.3.23",
     "@types/react-dom": "^18.3.7",
-    "@vitejs/plugin-react-swc": "^3.11.0",
+    "@vitejs/plugin-react": "^4.3.4",
     "autoprefixer": "^10.4.21",
     "eslint": "^9.32.0",
     "eslint-plugin-react-hooks": "^5.2.0",
@@ -88,9 +93,11 @@
     "globals": "^15.15.0",
     "lovable-tagger": "^1.1.10",
     "postcss": "^8.5.6",
+    "rollup-plugin-visualizer": "^5.12.0",
     "tailwindcss": "^3.4.17",
     "typescript": "^5.8.3",
     "typescript-eslint": "^8.38.0",
-    "vite": "^5.4.19"
+    "vite": "^5.4.19",
+    "vite-plugin-compression": "^0.5.1"
   }
 }

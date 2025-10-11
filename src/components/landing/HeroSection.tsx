@@ -11,12 +11,33 @@ import {
 } from "@/components/ui/tooltip";
 
 interface HeroSectionProps {
-  onCTAClick: () => void;
+  onCTAClick?: (route: string) => void;
 }
 
+interface HeroContent {
+  headline?: string;
+  description?: string;
+  cta_text?: string;
+}
+
+interface ButtonMapping {
+  enabled: boolean;
+  hover_text?: string | null;
+  route?: string | null;
+}
+
+type ContentSectionRow = {
+  content: HeroContent;
+};
+
+type ButtonMappingRow = ButtonMapping & {
+  id?: string;
+  button_id?: string;
+};
+
 export const HeroSection = ({ onCTAClick }: HeroSectionProps) => {
-  const [content, setContent] = useState<any>({ headline: "", description: "", cta_text: "" });
-  const [buttonMapping, setButtonMapping] = useState<any>({ enabled: true, hover_text: "", route: "/" });
+  const [content, setContent] = useState<HeroContent>({ headline: "", description: "", cta_text: "" });
+  const [buttonMapping, setButtonMapping] = useState<ButtonMapping>({ enabled: true, hover_text: "", route: "/" });
   const navigate = useNavigate();
 
   useEffect(() => {
@@ -29,8 +50,9 @@ export const HeroSection = ({ onCTAClick }: HeroSectionProps) => {
         "postgres_changes",
         { event: "*", schema: "public", table: "content_sections", filter: "section_name=eq.hero" },
         (payload) => {
-          if (payload.new && typeof payload.new === "object") {
-            setContent((payload.new as any).content);
+          const newRow = payload.new as Partial<ContentSectionRow> | null;
+          if (newRow?.content) {
+            setContent(newRow.content);
           }
         }
       )
@@ -38,8 +60,12 @@ export const HeroSection = ({ onCTAClick }: HeroSectionProps) => {
         "postgres_changes",
         { event: "*", schema: "public", table: "button_mappings", filter: "button_id=eq.hero_cta" },
         (payload) => {
-          if (payload.new) {
-            setButtonMapping(payload.new);
+          const newMapping = payload.new as Partial<ButtonMappingRow> | null;
+          if (newMapping) {
+            setButtonMapping((prev) => ({
+              ...prev,
+              ...newMapping,
+            }));
           }
         }
       )
@@ -59,17 +85,29 @@ export const HeroSection = ({ onCTAClick }: HeroSectionProps) => {
 
     const { data: buttonData } = await supabase
       .from("button_mappings")
-      .select("*")
+      .select("enabled, hover_text, route")
       .eq("button_id", "hero_cta")
       .single();
 
-    if (heroData) setContent(heroData.content);
-    if (buttonData) setButtonMapping(buttonData);
+    if (heroData?.content) setContent(heroData.content as HeroContent);
+    if (buttonData) setButtonMapping((prev) => ({ ...prev, ...buttonData }));
   };
 
   const handleCTAClick = () => {
-    // Always navigate to scheduler when button is clicked
-    navigate("/scheduler");
+    if (!buttonMapping.enabled) return;
+
+    const targetRoute = buttonMapping.route?.trim() || "/";
+
+    if (onCTAClick) {
+      onCTAClick(targetRoute);
+      return;
+    }
+
+    if (targetRoute.startsWith("http")) {
+      window.open(targetRoute, "_blank", "noopener,noreferrer");
+    } else {
+      navigate(targetRoute);
+    }
   };
 
   return (
@@ -93,17 +131,17 @@ export const HeroSection = ({ onCTAClick }: HeroSectionProps) => {
           {content.description || "Transform chaos into clarity. Smart scheduling, intelligent notes, and seamless collaboration—all in one place."}
         </p>
         <div className="mt-8 flex flex-col sm:flex-row items-center justify-center gap-6">
-                    <Button
+          <Button
             onClick={() => {
               const section = document.getElementById("waitlist");
               section?.scrollIntoView({ behavior: "smooth" });
             }}
             size="lg"
-            variant="outline"
+            variant="default"
             className="h-14 px-8 text-lg bg-gradient-to-r from-primary to-accent hover:opacity-90 group"
-    >
-      Join Waitlist!
-    </Button>
+          >
+            Join Waitlist!
+          </Button>
           <TooltipProvider>
             <Tooltip>
               <TooltipTrigger asChild>
@@ -111,9 +149,9 @@ export const HeroSection = ({ onCTAClick }: HeroSectionProps) => {
                   onClick={handleCTAClick}
                   size="lg"
                   disabled={!buttonMapping.enabled}
-                  className="h-14  px-8 text-lg bg-gradient-to-r from-primary to-accent hover:opacity-90 group"
+                  className="h-14 px-8 text-lg bg-gradient-to-r from-primary to-accent hover:opacity-90 group"
                 >
-                  {"Preview Scheduler Now!"}
+                  {content.cta_text || "Preview Scheduler Now!"}
                   <ArrowRight className="ml-2 group-hover:translate-x-1 transition-transform" />
                 </Button>
               </TooltipTrigger>

@@ -56,11 +56,12 @@ export const AISearchBar = () => {
       if (reply) {
         setMessages((prev) => [...prev, { role: "assistant", content: reply.trim() }]);
       }
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error("Chat error:", error);
+      const message = error instanceof Error ? error.message : "Failed to get response";
       toast({
         title: "Error",
-        description: error.message || "Failed to get response",
+        description: message,
         variant: "destructive",
       });
     } finally {

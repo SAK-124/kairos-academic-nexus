@@ -5,6 +5,8 @@ import { Sparkles, Mail } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 
+type InterestLevel = "casual" | "serious" | "urgent";
+
 export const WaitlistForm = () => {
   const { toast } = useToast();
   const [formData, setFormData] = useState({
@@ -13,7 +15,7 @@ export const WaitlistForm = () => {
     phone_number: "",
     university: "",
     graduation_year: "",
-    interest_level: "casual" as "casual" | "serious" | "urgent",
+    interest_level: "casual" as InterestLevel,
   });
   const [isSubmitting, setIsSubmitting] = useState(false);
 
@@ -127,7 +129,10 @@ export const WaitlistForm = () => {
           />
           <select
             value={formData.interest_level}
-            onChange={(e) => setFormData(prev => ({ ...prev, interest_level: e.target.value as any }))}
+            onChange={(e) => {
+              const value = e.target.value as InterestLevel;
+              setFormData((prev) => ({ ...prev, interest_level: value }));
+            }}
             className="flex h-10 w-full rounded-md border border-primary/20 bg-background/50 backdrop-blur-sm px-3 py-2 text-sm"
           >
             <option value="casual">Just Exploring</option>

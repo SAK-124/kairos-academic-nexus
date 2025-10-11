@@ -1,4 +1,5 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
+import { resolveGeminiKey } from "../_shared/ai-config.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -11,97 +12,135 @@ serve(async (req) => {
   }
 
   try {
-    const { message } = await req.json();
-    const GEMINI_API_KEY = Deno.env.get("GEMINI_API_KEY");
+    const rawPayload = (await req.json().catch(() => null)) as unknown;
+    const payloadRecord =
+      rawPayload && typeof rawPayload === 'object'
+        ? (rawPayload as Record<string, unknown>)
+        : {};
 
-    if (!GEMINI_API_KEY) {
-      throw new Error("GEMINI_API_KEY is not configured");
+    const incoming = Array.isArray(payloadRecord.messages)
+      ? payloadRecord.messages
+      : payloadRecord.message
+        ? [{ role: 'user', content: String(payloadRecord.message) }]
+        : [];
+
+    type NormalizedMessage = { role: 'system' | 'user' | 'assistant'; content?: unknown };
+
+    const normalizeMessage = (value: unknown): NormalizedMessage | null => {
+      if (typeof value === 'object' && value !== null) {
+        const role = (value as { role?: string }).role;
+        if (role === 'system' || role === 'user' || role === 'assistant') {
+          return { role, content: (value as { content?: unknown }).content };
+        }
+      }
+      return null;
+    };
+
+    const normalizedMessages = incoming
+      .map((message) => normalizeMessage(message))
+      .filter((message): message is NormalizedMessage => message !== null);
+
+    if (!normalizedMessages.length) {
+      return new Response(
+        JSON.stringify({ error: 'No prompt provided' }),
+        {
+          status: 400,
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        },
+      );
     }
 
-    console.log("Received message:", message);
+    const GEMINI_API_KEY = await resolveGeminiKey();
 
-    const systemPrompt = `You are Kairos, an AI academic companion designed to help students plan their courses and manage their academic life. You are knowledgeable, supportive, and provide practical guidance on course selection, scheduling, and academic success.
+    if (!GEMINI_API_KEY) {
+      throw new Error('Gemini API key is not configured');
+    }
 
-Key features of the Kairos platform:
-- AI-powered course scheduling with conflict detection
-- Personalized course recommendations based on student preferences and history
-- GPA tracking and academic performance insights
-- Study planning and deadline management
-- Integration with university course catalogs
+    const baseSystemPrompt = `You are Kairos, an AI academic companion designed to help students plan their courses and manage their academic life. You are knowledgeable, supportive, and provide practical guidance on course selection, scheduling, and academic success.`;
 
-When helping students:
-- Ask clarifying questions about their major, interests, and academic goals
-- Provide specific, actionable advice
-- Be encouraging and supportive
-- Keep responses concise and helpful`;
+    const systemMessages = normalizedMessages.filter((msg) => msg.role === 'system');
+    const conversation = normalizedMessages.filter((msg) => msg.role !== 'system');
 
-    // Google Gemini API request format
+    const systemInstruction = [baseSystemPrompt]
+      .concat(systemMessages.map((msg) => String(msg.content ?? '')))
+      .filter(Boolean)
+      .join('\n\n');
+
+    const contents = conversation.map((msg) => ({
+      role: msg.role === 'assistant' ? 'model' : 'user',
+      parts: [{ text: String(msg.content ?? '') }],
+    }));
+
     const response = await fetch(
       `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash-lite:generateContent?key=${GEMINI_API_KEY}`,
       {
-        method: "POST",
+        method: 'POST',
         headers: {
-          "Content-Type": "application/json",
+          'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          contents: [
-            {
-              parts: [
-                { text: systemPrompt },
-                { text: message }
-              ]
-            }
-          ],
+          systemInstruction: {
+            role: 'system',
+            parts: [{ text: systemInstruction }],
+          },
+          contents,
           generationConfig: {
-            temperature: 0.7,
-            maxOutputTokens: 1000,
-          }
+            temperature: typeof payloadRecord.temperature === 'number' ? payloadRecord.temperature : 0.6,
+            maxOutputTokens: 1200,
+          },
         }),
-      }
+      },
     );
 
     if (!response.ok) {
       const errorText = await response.text();
-      console.error("Gemini API error:", response.status, errorText);
-      
+      console.error('Gemini API error:', response.status, errorText);
+
       if (response.status === 429) {
         return new Response(
-          JSON.stringify({ error: "Rate limit exceeded. Please try again later." }),
-          { 
-            status: 429, 
-            headers: { ...corsHeaders, "Content-Type": "application/json" } 
-          }
+          JSON.stringify({ error: 'Rate limit exceeded. Please try again later.' }),
+          {
+            status: 429,
+            headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+          },
         );
       }
 
       return new Response(
-        JSON.stringify({ error: "AI service unavailable" }),
-        { 
-          status: 500, 
-          headers: { ...corsHeaders, "Content-Type": "application/json" } 
-        }
+        JSON.stringify({ error: 'AI service unavailable' }),
+        {
+          status: 500,
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        },
       );
     }
 
-    const data = await response.json();
-    console.log("Gemini response received");
-
-    const reply = data.candidates?.[0]?.content?.parts?.[0]?.text || "I apologize, but I couldn't generate a response. Please try again.";
+    const data = (await response.json()) as Record<string, unknown>;
+    const candidates = Array.isArray(data.candidates) ? data.candidates : [];
+    const firstCandidate = candidates.length > 0 && typeof candidates[0] === 'object' ? candidates[0] as Record<string, unknown> : null;
+    const parts = Array.isArray(firstCandidate?.content?.parts)
+      ? (firstCandidate?.content?.parts as Array<{ text?: string }>)
+      : [];
+    const replyText = parts
+      .map((part) => part?.text ?? '')
+      .filter((text) => text && text.length)
+      .join('\n');
+    const reply = replyText || 'I apologize, but I could not generate a helpful response.';
 
     return new Response(
       JSON.stringify({ reply }),
-      { 
-        headers: { ...corsHeaders, "Content-Type": "application/json" } 
-      }
+      {
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      },
     );
-  } catch (error) {
-    console.error("Error in chat function:", error);
+  } catch (error: unknown) {
+    console.error('Error in chat function:', error);
     return new Response(
-      JSON.stringify({ error: error instanceof Error ? error.message : "An unexpected error occurred" }),
-      { 
-        status: 500, 
-        headers: { ...corsHeaders, "Content-Type": "application/json" } 
-      }
+      JSON.stringify({ error: error instanceof Error ? error.message : 'An unexpected error occurred' }),
+      {
+        status: 500,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      },
     );
   }
 });

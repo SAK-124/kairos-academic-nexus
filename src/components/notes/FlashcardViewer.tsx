@@ -3,15 +3,10 @@ import { Button } from '@/components/ui/button';
 import { ChevronLeft, ChevronRight, X } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useIsMobile } from '@/hooks/use-mobile';
-
-interface Flashcard {
-  id: string;
-  question: string;
-  answer: string;
-}
+import type { FlashcardItem } from '@/types/ai';
 
 interface FlashcardViewerProps {
-  flashcards: Flashcard[];
+  flashcards: FlashcardItem[];
   onClose: () => void;
   isGenerating?: boolean;
 }

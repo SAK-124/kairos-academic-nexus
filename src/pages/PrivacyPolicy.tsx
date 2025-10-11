@@ -1,9 +1,10 @@
 import { Navigation } from "@/components/Navigation";
 import { useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
+import type { User as SupabaseUser } from "@supabase/supabase-js";
 
 const PrivacyPolicy = () => {
-  const [user, setUser] = useState<any>(null);
+  const [user, setUser] = useState<SupabaseUser | null>(null);
   const [isAdmin, setIsAdmin] = useState(false);
 
   useEffect(() => {

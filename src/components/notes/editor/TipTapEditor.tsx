@@ -1,4 +1,4 @@
-import { useEditor, EditorContent } from '@tiptap/react';
+import { useEditor, EditorContent, type Content } from '@tiptap/react';
 import StarterKit from '@tiptap/starter-kit';
 import Link from '@tiptap/extension-link';
 import Image from '@tiptap/extension-image';
@@ -16,7 +16,7 @@ const lowlight = createLowlight(common);
 
 interface TipTapEditorProps {
   noteId: string;
-  initialContent: any;
+  initialContent: Content;
   onSave: (date: Date) => void;
 }
 

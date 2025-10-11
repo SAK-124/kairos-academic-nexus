@@ -1,7 +1,7 @@
 import { useState, useEffect, useMemo } from 'react';
 import { Button } from '@/components/ui/button';
 import { ScrollArea } from '@/components/ui/scroll-area';
-import { Plus, FileText, Star, Archive, BookOpen, Folder, GraduationCap, Menu, X, Layers, HelpCircle } from 'lucide-react';
+import { Plus, FileText, Star, Archive, BookOpen, Folder, GraduationCap, Menu, X, Layers, HelpCircle, type LucideIcon } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { CourseDialog } from './CourseDialog';
 import { FolderDialog } from './FolderDialog';
@@ -466,7 +466,7 @@ function SidebarButton({
   label,
   active = false,
 }: {
-  icon: any;
+  icon: LucideIcon;
   label: string;
   active?: boolean;
 }) {

@@ -12,8 +12,8 @@ interface AIAssistantPanelProps {
   noteId: string;
   courseId?: string | null;
   folderId?: string | null;
-  onShowFlashcards: (flashcards: any[]) => void;
-  onShowQuiz: (questions: any[]) => void;
+  onShowFlashcards: (flashcards: FlashcardItem[]) => void;
+  onShowQuiz: (questions: QuizQuestionItem[]) => void;
   onGeneratingChange: (isGenerating: boolean) => void;
 }
 
@@ -228,9 +228,10 @@ ${noteContent}`,
       setCachedResponse(actionId, cacheKey, sanitized);
     } catch (error: any) {
       console.error('Error in AI assistant:', error);
+      const message = error instanceof Error ? error.message : 'Failed to process request';
       toast({
         title: 'Error',
-        description: error.message || 'Failed to process request',
+        description: message,
         variant: 'destructive',
       });
     } finally {

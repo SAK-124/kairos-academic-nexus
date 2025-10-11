@@ -3,16 +3,10 @@ import { Button } from '@/components/ui/button';
 import { X, RotateCw, CheckCircle2, XCircle } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useIsMobile } from '@/hooks/use-mobile';
-
-interface QuizQuestion {
-  id: string;
-  question: string;
-  options: string[];
-  correct_answer: string;
-}
+import type { QuizQuestionItem } from '@/types/ai';
 
 interface QuizViewerProps {
-  questions: QuizQuestion[];
+  questions: QuizQuestionItem[];
   onClose: () => void;
   onGenerateMore?: () => void;
   isGenerating?: boolean;

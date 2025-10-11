@@ -1,6 +1,5 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
-import type { User } from "@supabase/supabase-js";
 import { IntroSection } from "@/components/landing/IntroSection";
 import { HeroSection } from "@/components/landing/HeroSection";
 import { SocialProofSection } from "@/components/landing/SocialProofSection";
@@ -14,48 +13,20 @@ import { AuthModal } from "@/components/AuthModal";
 import { AdminPanel } from "@/components/admin/AdminPanel";
 import { AISearchBar } from "@/components/AISearchBar";
 import { Navigation } from "@/components/Navigation";
-import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { WaitlistSection } from "@/components/landing/WaitlistSection";
 import { FooterSection } from "@/components/landing/FooterSection";
+import { useAuth } from "@/hooks/useAuth";
+import { useAdminStatus } from "@/hooks/useAdminStatus";
 
 const Index = () => {
   const [showIntro, setShowIntro] = useState(true);
   const [showAuthModal, setShowAuthModal] = useState(false);
   const [showAdminPanel, setShowAdminPanel] = useState(false);
-  const [user, setUser] = useState<User | null>(null);
-  const [isAdmin, setIsAdmin] = useState(false);
   const navigate = useNavigate();
   const { toast } = useToast();
-
-  const checkAdminStatus = useCallback(async (currentUser: User | null | undefined) => {
-    if (!currentUser) {
-      setIsAdmin(false);
-      return;
-    }
-    const { data } = await supabase
-      .from("user_roles")
-      .select("role")
-      .eq("user_id", currentUser.id)
-      .eq("role", "admin")
-      .maybeSingle();
-    setIsAdmin(!!data);
-  }, []);
-
-  const checkUser = useCallback(async () => {
-    const { data: { session } } = await supabase.auth.getSession();
-    setUser(session?.user ?? null);
-    await checkAdminStatus(session?.user);
-  }, [checkAdminStatus]);
-
-  useEffect(() => {
-    void checkUser();
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
-      setUser(session?.user ?? null);
-      void checkAdminStatus(session?.user);
-    });
-    return () => subscription.unsubscribe();
-  }, [checkAdminStatus, checkUser]);
+  const { user, loading: authLoading } = useAuth();
+  const isAdmin = useAdminStatus(user);
 
   const handleIntroComplete = () => {
     setShowIntro(false);

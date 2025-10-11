@@ -4,6 +4,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import App from "./App.tsx";
 import "./index.css";
 import { prefetch } from "./lib/prefetch";
+import { AuthProvider } from "./hooks/useAuth";
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -26,7 +27,9 @@ const root = createRoot(rootElement);
 root.render(
   <StrictMode>
     <QueryClientProvider client={queryClient}>
-      <App />
+      <AuthProvider>
+        <App />
+      </AuthProvider>
     </QueryClientProvider>
   </StrictMode>,
 );

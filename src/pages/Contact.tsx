@@ -6,11 +6,12 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/hooks/use-toast";
 import { Mail, MessageSquare, User } from "lucide-react";
-import type { User as SupabaseUser } from "@supabase/supabase-js";
+import { useAuth } from "@/hooks/useAuth";
+import { useAdminStatus } from "@/hooks/useAdminStatus";
 
 const Contact = () => {
-  const [user, setUser] = useState<SupabaseUser | null>(null);
-  const [isAdmin, setIsAdmin] = useState(false);
+  const { user } = useAuth();
+  const isAdmin = useAdminStatus(user);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const { toast } = useToast();
 
@@ -22,25 +23,19 @@ const Contact = () => {
   });
 
   useEffect(() => {
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      setUser(session?.user ?? null);
-      if (session?.user) {
-        setFormData(prev => ({
-          ...prev,
-          email: session.user.email || "",
-        }));
-        supabase
-          .from("user_roles")
-          .select("role")
-          .eq("user_id", session.user.id)
-          .eq("role", "admin")
-          .maybeSingle()
-          .then(({ data }) => {
-            setIsAdmin(!!data);
-          });
-      }
-    });
-  }, []);
+    if (!user?.email) {
+      setFormData((prev) => ({
+        ...prev,
+        email: "",
+      }));
+      return;
+    }
+
+    setFormData((prev) => ({
+      ...prev,
+      email: user.email ?? "",
+    }));
+  }, [user?.email]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();

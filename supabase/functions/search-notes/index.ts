@@ -6,6 +6,25 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 };
 
+const buildWebSearchQuery = (input: string) => {
+  return input
+    .split(/[\s,]+/)
+    .map((term) => term.trim())
+    .filter(Boolean)
+    .join(' ');
+};
+
+const toErrorMessage = (error: unknown) => {
+  if (error instanceof Error) {
+    return error.message;
+  }
+  try {
+    return JSON.stringify(error);
+  } catch {
+    return String(error);
+  }
+};
+
 serve(async (req) => {
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders });
@@ -74,7 +93,10 @@ serve(async (req) => {
 
     // Full-text search
     if (searchTerms) {
-      dbQuery = dbQuery.textSearch('plain_text_search', searchTerms);
+      const normalisedTerms = buildWebSearchQuery(searchTerms);
+      if (normalisedTerms) {
+        dbQuery = dbQuery.textSearch('plain_text_search', normalisedTerms, { type: 'websearch' });
+      }
     }
 
     // Apply filters
@@ -100,9 +122,9 @@ serve(async (req) => {
     return new Response(JSON.stringify({ notes: notes || [] }), {
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
     });
-  } catch (error: any) {
+  } catch (error) {
     console.error('Error in search-notes:', error);
-    return new Response(JSON.stringify({ error: error.message }), {
+    return new Response(JSON.stringify({ error: toErrorMessage(error) }), {
       status: 500,
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
     });

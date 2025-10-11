@@ -1,4 +1,6 @@
 import { useState, useEffect } from "react";
+import { useNavigate } from "react-router-dom";
+import type { User } from "@supabase/supabase-js";
 import { IntroSection } from "@/components/landing/IntroSection";
 import { HeroSection } from "@/components/landing/HeroSection";
 import { SocialProofSection } from "@/components/landing/SocialProofSection";
@@ -21,8 +23,9 @@ const Index = () => {
   const [showIntro, setShowIntro] = useState(true);
   const [showAuthModal, setShowAuthModal] = useState(false);
   const [showAdminPanel, setShowAdminPanel] = useState(false);
-  const [user, setUser] = useState<any>(null);
+  const [user, setUser] = useState<User | null>(null);
   const [isAdmin, setIsAdmin] = useState(false);
+  const navigate = useNavigate();
   const { toast } = useToast();
 
   useEffect(() => {
@@ -40,7 +43,7 @@ const Index = () => {
     checkAdminStatus(session?.user);
   };
 
-  const checkAdminStatus = async (currentUser: any) => {
+  const checkAdminStatus = async (currentUser: User | null | undefined) => {
     if (!currentUser) {
       setIsAdmin(false);
       return;
@@ -58,12 +61,23 @@ const Index = () => {
     setShowIntro(false);
   };
 
-  const handleCTAClick = () => {
+  const handleCTAClick = (route: string) => {
     if (!user) {
       setShowAuthModal(true);
-    } else {
-      toast({ title: "Coming Soon!", description: "The scheduler is almost ready." });
+      return;
     }
+
+    if (route.startsWith("http")) {
+      window.open(route, "_blank", "noopener,noreferrer");
+      return;
+    }
+
+    if (route === "/scheduler") {
+      toast({ title: "Coming Soon!", description: "The scheduler is almost ready." });
+      return;
+    }
+
+    navigate(route);
   };
 
   useEffect(() => {

@@ -1,10 +1,11 @@
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
+import type { User } from '@supabase/supabase-js';
 import { supabase } from '@/integrations/supabase/client';
 import { Button } from '@/components/ui/button';
 import { Plus, Loader2 } from 'lucide-react';
 import { NoteCard } from '@/components/notes/NoteCard';
-import { NotesSidebar } from '@/components/notes/NotesSidebar';
+import { NotesSidebar, type StudyMaterial } from '@/components/notes/NotesSidebar';
 import { SearchBar } from '@/components/notes/SearchBar';
 import { useToast } from '@/hooks/use-toast';
 import { AnimatedLogo } from '@/components/AnimatedLogo';
@@ -23,17 +24,26 @@ interface Note {
 }
 
 export default function Notes() {
-  const [user, setUser] = useState<any>(null);
+  const [user, setUser] = useState<User | null>(null);
   const [notes, setNotes] = useState<Note[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedCourseId, setSelectedCourseId] = useState<string | null>(null);
   const [selectedFolderId, setSelectedFolderId] = useState<string | null>(null);
-  const [viewingMaterial, setViewingMaterial] = useState<any>(null);
+  const [viewingMaterial, setViewingMaterial] = useState<StudyMaterial | null>(null);
   const [courses, setCourses] = useState<Array<{ id: string; name: string }>>([]);
   const [folders, setFolders] = useState<Array<{ id: string; name: string }>>([]);
   const navigate = useNavigate();
   const { toast } = useToast();
+
+  const handleToastError = (title: string, error: unknown) => {
+    const description = error instanceof Error ? error.message : 'An unexpected error occurred.';
+    toast({
+      title,
+      description,
+      variant: 'destructive',
+    });
+  };
 
   useEffect(() => {
     checkAuth();
@@ -56,21 +66,19 @@ export default function Notes() {
   };
 
   const loadNotes = async () => {
+    if (!user) return;
     try {
       setLoading(true);
       const { data, error } = await supabase
         .from('notes')
         .select('*')
+        .eq('user_id', user.id)
         .order('updated_at', { ascending: false });
 
       if (error) throw error;
       setNotes(data || []);
-    } catch (error: any) {
-      toast({
-        title: 'Error loading notes',
-        description: error.message,
-        variant: 'destructive',
-      });
+    } catch (error) {
+      handleToastError('Error loading notes', error);
     } finally {
       setLoading(false);
     }
@@ -93,12 +101,8 @@ export default function Notes() {
 
       if (error) throw error;
       navigate(`/notes/${data.id}`);
-    } catch (error: any) {
-      toast({
-        title: 'Error creating note',
-        description: error.message,
-        variant: 'destructive',
-      });
+    } catch (error) {
+      handleToastError('Error creating note', error);
     }
   };
 
@@ -107,31 +111,31 @@ export default function Notes() {
   };
 
   const handleFavorite = async (noteId: string, isFavorite: boolean) => {
+    if (!user) return;
     try {
       const { error } = await supabase
         .from('notes')
         .update({ is_favorite: !isFavorite })
-        .eq('id', noteId);
+        .eq('id', noteId)
+        .eq('user_id', user.id);
 
       if (error) throw error;
       loadNotes();
-    } catch (error: any) {
-      toast({
-        title: 'Error updating note',
-        description: error.message,
-        variant: 'destructive',
-      });
+    } catch (error) {
+      handleToastError('Error updating note', error);
     }
   };
 
   const handleDelete = async (noteId: string) => {
+    if (!user) return;
     if (!confirm('Are you sure you want to delete this note?')) return;
 
     try {
       const { error } = await supabase
         .from('notes')
         .delete()
-        .eq('id', noteId);
+        .eq('id', noteId)
+        .eq('user_id', user.id);
 
       if (error) throw error;
       loadNotes();
@@ -139,20 +143,26 @@ export default function Notes() {
         title: 'Note deleted',
         description: 'Your note has been deleted successfully.',
       });
-    } catch (error: any) {
-      toast({
-        title: 'Error deleting note',
-        description: error.message,
-        variant: 'destructive',
-      });
+    } catch (error) {
+      handleToastError('Error deleting note', error);
     }
   };
 
   const loadCoursesAndFolders = async () => {
+    if (!user) return;
+
     try {
       const [coursesRes, foldersRes] = await Promise.all([
-        supabase.from('courses').select('id, name').order('name'),
-        supabase.from('folders').select('id, name').order('name')
+        supabase
+          .from('courses')
+          .select('id, name')
+          .eq('user_id', user.id)
+          .order('name'),
+        supabase
+          .from('folders')
+          .select('id, name')
+          .eq('user_id', user.id)
+          .order('name')
       ]);
       
       if (coursesRes.error) throw coursesRes.error;
@@ -160,60 +170,62 @@ export default function Notes() {
       
       setCourses(coursesRes.data || []);
       setFolders(foldersRes.data || []);
-    } catch (error: any) {
+    } catch (error) {
       console.error('Error loading courses/folders:', error);
     }
   };
 
   const handleMoveToCourse = async (noteId: string, courseId: string | null) => {
+    if (!user) return;
+
     try {
       const { error } = await supabase
         .from('notes')
         .update({ course_id: courseId })
-        .eq('id', noteId);
-      
+        .eq('id', noteId)
+        .eq('user_id', user.id);
+
       if (error) throw error;
-      
-      setNotes(notes.map(note => 
-        note.id === noteId ? { ...note, course_id: courseId } : note
-      ));
-      
+
+      setNotes((prevNotes) =>
+        prevNotes.map(note =>
+          note.id === noteId ? { ...note, course_id: courseId } : note
+        )
+      );
+
       toast({
         title: 'Success',
         description: courseId ? 'Note moved to course' : 'Note removed from course',
       });
-    } catch (error: any) {
-      toast({
-        title: 'Error',
-        description: error.message,
-        variant: 'destructive',
-      });
+    } catch (error) {
+      handleToastError('Error', error);
     }
   };
 
   const handleMoveToFolder = async (noteId: string, folderId: string | null) => {
+    if (!user) return;
+
     try {
       const { error } = await supabase
         .from('notes')
         .update({ folder_id: folderId })
-        .eq('id', noteId);
-      
+        .eq('id', noteId)
+        .eq('user_id', user.id);
+
       if (error) throw error;
-      
-      setNotes(notes.map(note => 
-        note.id === noteId ? { ...note, folder_id: folderId } : note
-      ));
-      
+
+      setNotes((prevNotes) =>
+        prevNotes.map(note =>
+          note.id === noteId ? { ...note, folder_id: folderId } : note
+        )
+      );
+
       toast({
         title: 'Success',
         description: folderId ? 'Note moved to folder' : 'Note removed from folder',
       });
-    } catch (error: any) {
-      toast({
-        title: 'Error',
-        description: error.message,
-        variant: 'destructive',
-      });
+    } catch (error) {
+      handleToastError('Error', error);
     }
   };
 
@@ -245,8 +257,9 @@ export default function Notes() {
       </div>
 
       <div className="flex flex-1">
-        <NotesSidebar 
+        <NotesSidebar
           onCreateNote={handleCreateNote}
+          userId={user?.id}
           onCourseClick={(courseId) => {
             setSelectedCourseId(courseId === selectedCourseId ? null : courseId);
             setSelectedFolderId(null);

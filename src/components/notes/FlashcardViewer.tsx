@@ -1,6 +1,6 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo, useCallback, type TouchEvent as ReactTouchEvent } from 'react';
 import { Button } from '@/components/ui/button';
-import { ChevronLeft, ChevronRight, X, RotateCw } from 'lucide-react';
+import { ChevronLeft, ChevronRight, X } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useIsMobile } from '@/hooks/use-mobile';
 
@@ -16,73 +16,64 @@ interface FlashcardViewerProps {
   isGenerating?: boolean;
 }
 
-export function FlashcardViewer({ 
-  flashcards, 
-  onClose, 
-  isGenerating = false 
+export function FlashcardViewer({
+  flashcards,
+  onClose,
+  isGenerating = false
 }: FlashcardViewerProps) {
-  // Ensure flashcards is always an array
-  const flashcardsArray = Array.isArray(flashcards) ? flashcards : [];
-  
+  const flashcardsArray = useMemo(
+    () => (Array.isArray(flashcards) ? flashcards : []),
+    [flashcards]
+  );
+
   const [currentIndex, setCurrentIndex] = useState(0);
   const [isFlipped, setIsFlipped] = useState(false);
   const [touchStart, setTouchStart] = useState(0);
   const [touchEnd, setTouchEnd] = useState(0);
   const isMobile = useIsMobile();
+  const hasFlashcards = flashcardsArray.length > 0;
 
-  // Guard clause for empty flashcards
-  if (flashcardsArray.length === 0) {
-    return (
-      <div className="fixed inset-0 z-50 bg-background/95 backdrop-blur-sm flex items-center justify-center p-4">
-        <div className="bg-card rounded-lg border p-8 shadow-lg text-center">
-          <p className="text-muted-foreground mb-4">No flashcards available</p>
-          <Button onClick={onClose}>Close</Button>
-        </div>
-      </div>
-    );
-  }
+  const handleNext = useCallback(() => {
+    setCurrentIndex((prev) => {
+      if (prev < flashcardsArray.length - 1) {
+        setIsFlipped(false);
+        return prev + 1;
+      }
+      return prev;
+    });
+  }, [flashcardsArray.length]);
 
-  const currentCard = flashcardsArray[currentIndex];
+  const handlePrevious = useCallback(() => {
+    setCurrentIndex((prev) => {
+      if (prev > 0) {
+        setIsFlipped(false);
+        return prev - 1;
+      }
+      return prev;
+    });
+  }, []);
 
-  const handleNext = () => {
-    if (currentIndex < flashcardsArray.length - 1) {
-      setCurrentIndex(currentIndex + 1);
-      setIsFlipped(false);
-    }
-  };
+  const handleFlip = useCallback(() => {
+    setIsFlipped((prev) => !prev);
+  }, []);
 
-  const handlePrevious = () => {
-    if (currentIndex > 0) {
-      setCurrentIndex(currentIndex - 1);
-      setIsFlipped(false);
-    }
-  };
-
-  const handleFlip = () => {
-    setIsFlipped(!isFlipped);
-  };
-
-  // Touch gesture handlers for mobile
-  const handleTouchStart = (e: React.TouchEvent) => {
+  const handleTouchStart = useCallback((e: ReactTouchEvent<HTMLDivElement>) => {
     setTouchStart(e.touches[0].clientX);
-  };
+  }, []);
 
-  const handleTouchMove = (e: React.TouchEvent) => {
+  const handleTouchMove = useCallback((e: ReactTouchEvent<HTMLDivElement>) => {
     setTouchEnd(e.touches[0].clientX);
-  };
+  }, []);
 
-  const handleTouchEnd = () => {
+  const handleTouchEnd = useCallback(() => {
     if (touchStart - touchEnd > 75) {
-      // Swipe left = next
       handleNext();
     }
     if (touchEnd - touchStart > 75) {
-      // Swipe right = previous
       handlePrevious();
     }
-  };
+  }, [handleNext, handlePrevious, touchEnd, touchStart]);
 
-  // Keyboard navigation
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.key === 'ArrowLeft') handlePrevious();
@@ -96,7 +87,30 @@ export function FlashcardViewer({
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [currentIndex, flashcardsArray.length]);
+  }, [handleFlip, handleNext, handlePrevious, onClose]);
+
+  useEffect(() => {
+    if (!hasFlashcards) {
+      setCurrentIndex(0);
+      setIsFlipped(false);
+      return;
+    }
+
+    setCurrentIndex((prev) => Math.min(prev, flashcardsArray.length - 1));
+  }, [flashcardsArray.length, hasFlashcards]);
+
+  if (!hasFlashcards) {
+    return (
+      <div className="fixed inset-0 z-50 bg-background/95 backdrop-blur-sm flex items-center justify-center p-4">
+        <div className="bg-card rounded-lg border p-8 shadow-lg text-center">
+          <p className="text-muted-foreground mb-4">No flashcards available</p>
+          <Button onClick={onClose}>Close</Button>
+        </div>
+      </div>
+    );
+  }
+
+  const currentCard = flashcardsArray[currentIndex];
 
   return (
     <div className={cn(

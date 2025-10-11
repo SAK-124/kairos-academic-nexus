@@ -5,32 +5,31 @@ import { Plus, FileText, Star, Archive, BookOpen, Folder, GraduationCap, Menu, X
 import { supabase } from '@/integrations/supabase/client';
 import { CourseDialog } from './CourseDialog';
 import { FolderDialog } from './FolderDialog';
-import { useToast } from '@/hooks/use-toast';
 import { useIsMobile } from '@/hooks/use-mobile';
 import { cn } from '@/lib/utils';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 
-interface Course {
+export interface Course {
   id: string;
   name: string;
   code: string | null;
   color: string;
 }
 
-interface FolderItem {
+export interface FolderItem {
   id: string;
   name: string;
   parent_id: string | null;
   course_id: string | null;
 }
 
-interface StudyMaterial {
+export interface StudyMaterial {
   id: string;
   type: string;
   note_id: string;
   course_id: string | null;
   folder_id: string | null;
-  content: any;
+  content: unknown;
   created_at: string;
   notes?: { title: string };
 }
@@ -39,12 +38,13 @@ interface NotesSidebarProps {
   onCreateNote: () => void;
   onCourseClick?: (courseId: string) => void;
   onFolderClick?: (folderId: string) => void;
-  onViewStudyMaterial?: (material: any) => void;
+  onViewStudyMaterial?: (material: StudyMaterial) => void;
   selectedCourseId?: string | null;
   selectedFolderId?: string | null;
+  userId?: string;
 }
 
-export function NotesSidebar({ onCreateNote, onCourseClick, onFolderClick, onViewStudyMaterial, selectedCourseId, selectedFolderId }: NotesSidebarProps) {
+export function NotesSidebar({ onCreateNote, onCourseClick, onFolderClick, onViewStudyMaterial, selectedCourseId, selectedFolderId, userId }: NotesSidebarProps) {
   const [courses, setCourses] = useState<Course[]>([]);
   const [folders, setFolders] = useState<FolderItem[]>([]);
   const [studyMaterials, setStudyMaterials] = useState<StudyMaterial[]>([]);
@@ -52,29 +52,39 @@ export function NotesSidebar({ onCreateNote, onCourseClick, onFolderClick, onVie
   const [showFolderDialog, setShowFolderDialog] = useState(false);
   const [preselectedCourseId, setPreselectedCourseId] = useState<string | null>(null);
   const [isSidebarOpen, setIsSidebarOpen] = useState(true);
-  const { toast } = useToast();
   const isMobile = useIsMobile();
 
   useEffect(() => {
+    if (!userId) {
+      setCourses([]);
+      setFolders([]);
+      setStudyMaterials([]);
+      return;
+    }
+
+    const loadData = async () => {
+      await Promise.all([
+        loadCourses(userId),
+        loadFolders(userId),
+        loadStudyMaterials(userId),
+      ]);
+    };
+
     loadData();
+  }, [userId]);
+
+  useEffect(() => {
     if (isMobile) {
       setIsSidebarOpen(false);
     }
   }, [isMobile]);
 
-  const loadData = async () => {
-    await Promise.all([
-      loadCourses(),
-      loadFolders(),
-      loadStudyMaterials(),
-    ]);
-  };
-
-  const loadCourses = async () => {
+  const loadCourses = async (currentUserId: string) => {
     try {
       const { data, error } = await supabase
         .from('courses')
         .select('*')
+        .eq('user_id', currentUserId)
         .order('name');
 
       if (error) throw error;
@@ -84,11 +94,12 @@ export function NotesSidebar({ onCreateNote, onCourseClick, onFolderClick, onVie
     }
   };
 
-  const loadFolders = async () => {
+  const loadFolders = async (currentUserId: string) => {
     try {
       const { data, error } = await supabase
         .from('folders')
         .select('*')
+        .eq('user_id', currentUserId)
         .order('name');
 
       if (error) throw error;
@@ -98,11 +109,12 @@ export function NotesSidebar({ onCreateNote, onCourseClick, onFolderClick, onVie
     }
   };
 
-  const loadStudyMaterials = async () => {
+  const loadStudyMaterials = async (currentUserId: string) => {
     try {
       const { data, error } = await supabase
         .from('study_materials')
         .select('*, notes(title)')
+        .eq('user_id', currentUserId)
         .order('created_at', { ascending: false });
 
       if (error) throw error;

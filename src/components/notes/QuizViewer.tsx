@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo, useCallback } from 'react';
 import { Button } from '@/components/ui/button';
 import { X, RotateCw, CheckCircle2, XCircle } from 'lucide-react';
 import { cn } from '@/lib/utils';
@@ -18,21 +18,97 @@ interface QuizViewerProps {
   isGenerating?: boolean;
 }
 
-export function QuizViewer({ 
-  questions, 
-  onClose, 
+export function QuizViewer({
+  questions,
+  onClose,
   onGenerateMore,
-  isGenerating = false 
+  isGenerating = false
 }: QuizViewerProps) {
-  // Ensure questions is always an array
-  const questionsArray = Array.isArray(questions) ? questions : [];
-  
+  const questionsArray = useMemo(
+    () => (Array.isArray(questions) ? questions : []),
+    [questions]
+  );
+
   const [currentIndex, setCurrentIndex] = useState(0);
   const [selectedAnswers, setSelectedAnswers] = useState<Record<string, string>>({});
   const [showResults, setShowResults] = useState(false);
+  const isMobile = useIsMobile();
+  const hasQuestions = questionsArray.length > 0;
 
-  // Guard clause for empty questions
-  if (questionsArray.length === 0) {
+  const currentQuestion = hasQuestions ? questionsArray[currentIndex] : undefined;
+
+  const handleSelectAnswer = useCallback((answer: string) => {
+    if (!showResults && currentQuestion) {
+      setSelectedAnswers((prev) => ({
+        ...prev,
+        [currentQuestion.id]: answer,
+      }));
+    }
+  }, [currentQuestion, showResults]);
+
+  const handleNext = useCallback(() => {
+    setCurrentIndex((prev) => {
+      if (prev < questionsArray.length - 1) {
+        return prev + 1;
+      }
+      return prev;
+    });
+  }, [questionsArray.length]);
+
+  const handlePrevious = useCallback(() => {
+    setCurrentIndex((prev) => {
+      if (prev > 0) {
+        return prev - 1;
+      }
+      return prev;
+    });
+  }, []);
+
+  const handleSubmit = useCallback(() => {
+    setShowResults(true);
+    setCurrentIndex(0);
+  }, []);
+
+  const score = useMemo(() => {
+    if (!showResults) return null;
+
+    const correct = questionsArray.reduce((acc, question) => (
+      selectedAnswers[question.id] === question.correct_answer ? acc + 1 : acc
+    ), 0);
+
+    return { correct, total: questionsArray.length };
+  }, [questionsArray, selectedAnswers, showResults]);
+
+  const allAnswered = useMemo(
+    () => questionsArray.every((q) => selectedAnswers[q.id]),
+    [questionsArray, selectedAnswers]
+  );
+
+  const isCorrect = useCallback((questionId: string) => {
+    const question = questionsArray.find((q) => q.id === questionId);
+    return selectedAnswers[questionId] === question?.correct_answer;
+  }, [questionsArray, selectedAnswers]);
+
+  useEffect(() => {
+    if (!hasQuestions) {
+      setCurrentIndex(0);
+      setSelectedAnswers({});
+      setShowResults(false);
+      return;
+    }
+
+    setCurrentIndex((prev) => Math.min(prev, questionsArray.length - 1));
+  }, [hasQuestions, questionsArray.length]);
+
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') onClose();
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [onClose]);
+
+  if (!hasQuestions) {
     return (
       <div className="fixed inset-0 z-50 bg-background/95 backdrop-blur-sm flex items-center justify-center p-4">
         <div className="bg-card rounded-lg border p-8 shadow-lg text-center">
@@ -42,62 +118,6 @@ export function QuizViewer({
       </div>
     );
   }
-
-  const currentQuestion = questionsArray[currentIndex];
-  const allAnswered = questionsArray.every(q => selectedAnswers[q.id]);
-
-  const handleSelectAnswer = (answer: string) => {
-    if (!showResults) {
-      setSelectedAnswers({
-        ...selectedAnswers,
-        [currentQuestion.id]: answer
-      });
-    }
-  };
-
-  const handleNext = () => {
-    if (currentIndex < questionsArray.length - 1) {
-      setCurrentIndex(currentIndex + 1);
-    }
-  };
-
-  const handlePrevious = () => {
-    if (currentIndex > 0) {
-      setCurrentIndex(currentIndex - 1);
-    }
-  };
-
-  const handleSubmit = () => {
-    setShowResults(true);
-    setCurrentIndex(0); // Reset to first question for review
-  };
-
-  const calculateScore = () => {
-    let correct = 0;
-    questionsArray.forEach(q => {
-      if (selectedAnswers[q.id] === q.correct_answer) {
-        correct++;
-      }
-    });
-    return { correct, total: questionsArray.length };
-  };
-
-  const isCorrect = (questionId: string) => {
-    const question = questionsArray.find(q => q.id === questionId);
-    return selectedAnswers[questionId] === question?.correct_answer;
-  };
-
-  const score = showResults ? calculateScore() : null;
-  const isMobile = useIsMobile();
-
-  // Keyboard navigation
-  useEffect(() => {
-    const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') onClose();
-    };
-    window.addEventListener('keydown', handleKeyDown);
-    return () => window.removeEventListener('keydown', handleKeyDown);
-  }, []);
 
   return (
     <div className={cn(
@@ -161,7 +181,6 @@ export function QuizViewer({
               {currentQuestion.options.map((option, idx) => {
                 const isSelected = selectedAnswers[currentQuestion.id] === option;
                 const isCorrectAnswer = option === currentQuestion.correct_answer;
-                const showCorrectness = showResults && isSelected;
 
                 return (
                   <button

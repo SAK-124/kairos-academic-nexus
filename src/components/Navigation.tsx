@@ -1,5 +1,6 @@
 import { useState, useEffect } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
+import type { User } from "@supabase/supabase-js";
 import { Button } from "@/components/ui/button";
 import { LogOut, Shield, Menu } from "lucide-react";
 import { ThemeToggle } from "./ThemeToggle";
@@ -13,7 +14,7 @@ import {
 } from "@/components/ui/sheet";
 
 interface NavigationProps {
-  user: any;
+  user: User | null;
   isAdmin: boolean;
   onAdminClick: () => void;
   onLoginClick: () => void;
@@ -73,23 +74,9 @@ export const Navigation = ({ user, isAdmin, onAdminClick, onLoginClick }: Naviga
     { label: "Pricing", id: "pricing" },
     { label: "FAQs", id: "faqs" },
   ];
-const handleWaitlistClick = () => {
-  if (location.pathname === "/scheduler") {
-    // On scheduler page → scroll to bottom
-    window.scrollTo({ top: document.body.scrollHeight, behavior: "smooth" });
-  } else {
-    // On homepage → scroll to waitlist section
-    const waitlistSection = document.getElementById("waitlist");
-    if (waitlistSection) {
-      waitlistSection.scrollIntoView({ behavior: "smooth", block: "start" });
-    } else {
-      // fallback if element doesn't exist
-      navigate("/#waitlist");
-    }
-  }
-
-  setMobileMenuOpen(false);
-};
+  const handleWaitlistClick = () => {
+    scrollToSection('waitlist');
+  };
 
 
 
@@ -197,7 +184,6 @@ const handleWaitlistClick = () => {
                 <Button
                   onClick={() => {
                     handleWaitlistClick();
-                    ;
                   }}
                   variant="default"
                   className="w-full"

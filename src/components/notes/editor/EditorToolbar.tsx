@@ -16,16 +16,14 @@ import {
 } from 'lucide-react';
 import type { Editor } from '@tiptap/react';
 import { useState } from 'react';
-import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
-import { marked } from 'marked';
+import { GeminiClient } from '@/integrations/gemini/client';
 
 interface EditorToolbarProps {
   editor: Editor;
-  noteId: string;
 }
 
-export function EditorToolbar({ editor, noteId }: EditorToolbarProps) {
+export function EditorToolbar({ editor }: EditorToolbarProps) {
   const [isFormatting, setIsFormatting] = useState(false);
   const { toast } = useToast();
 
@@ -40,31 +38,34 @@ export function EditorToolbar({ editor, noteId }: EditorToolbarProps) {
     setIsFormatting(true);
     try {
       const plainText = editor.getText();
-      
-      const { data, error } = await supabase.functions.invoke('format-note', {
-        body: { rawText: plainText },
-      });
+      if (!plainText.trim()) {
+        toast({
+          title: 'Nothing to format',
+          description: 'Add some text to your note before using auto-format.',
+        });
+        return;
+      }
 
-      if (error) throw error;
+      const messages = [
+        {
+          role: 'system' as const,
+          content:
+            'You are a meticulous academic editor. Rewrite the provided plain text into clean semantic HTML for a TipTap editor. Use headings, lists, and emphasis where it improves readability. Do not include <html> or <body> tags.',
+        },
+        {
+          role: 'user' as const,
+          content: `Format this content into HTML while preserving the intent:
+${plainText}`,
+        },
+      ];
 
-      if (data?.formatted) {
-        // Step 1: Strip markdown code blocks if present
-        let cleaned = data.formatted.trim();
-        if (cleaned.startsWith('```markdown')) {
-          cleaned = cleaned.replace(/^```markdown\s*/, '').replace(/\s*```$/, '');
-        } else if (cleaned.startsWith('```')) {
-          cleaned = cleaned.replace(/^```\s*/, '').replace(/\s*```$/, '');
-        }
-        
-        // Step 2: Convert markdown to HTML using marked
-        const html = await marked(cleaned);
-        
-        // Step 3: Set content in TipTap editor
-        editor.commands.setContent(html);
-        
+      const formatted = await GeminiClient.chat(messages);
+
+      if (formatted) {
+        editor.commands.setContent(formatted.trim());
         toast({
           title: 'Success',
-          description: 'Note formatted successfully with proper styling',
+          description: 'Note formatted successfully with Gemini.',
         });
       }
     } catch (error) {
@@ -157,9 +158,9 @@ export function EditorToolbar({ editor, noteId }: EditorToolbarProps) {
 
       <Separator orientation="vertical" className="h-6 mx-1" />
 
-      <Button 
-        variant="ghost" 
-        size="sm" 
+      <Button
+        variant="ghost"
+        size="sm"
         onClick={handleAutoFormat}
         disabled={isFormatting}
         className="gap-2"

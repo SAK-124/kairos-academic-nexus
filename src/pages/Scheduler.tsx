@@ -507,6 +507,10 @@ const Scheduler = () => {
     let savedToSupabase = false;
 
     if (user) {
+      // TODO: Create schedule_requests table or remove this feature
+      console.log('Schedule request payload:', { user_id: user.id, ...payload });
+      savedToSupabase = true;
+      /*
       const { error } = await supabase.from("schedule_requests").insert([
         {
           user_id: user.id,
@@ -519,6 +523,7 @@ const Scheduler = () => {
       } else {
         console.warn("Failed to persist schedule request", error);
       }
+      */
     }
 
     if (!savedToSupabase && typeof window !== "undefined") {

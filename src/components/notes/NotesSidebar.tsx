@@ -64,8 +64,8 @@ export function NotesSidebar({ onCreateNote, onCourseClick, onFolderClick, onVie
 
     const loadData = async () => {
       await Promise.all([
-        loadCourses(userId),
-        loadFolders(userId),
+        loadCourses(),
+        loadFolders(),
         loadStudyMaterials(userId),
       ]);
     };
@@ -79,12 +79,15 @@ export function NotesSidebar({ onCreateNote, onCourseClick, onFolderClick, onVie
     }
   }, [isMobile]);
 
-  const loadCourses = async (currentUserId: string) => {
+  const loadCourses = async () => {
     try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) return;
+
       const { data, error } = await supabase
         .from('courses')
         .select('*')
-        .eq('user_id', currentUserId)
+        .eq('user_id', user.id)
         .order('name');
 
       if (error) throw error;
@@ -94,12 +97,15 @@ export function NotesSidebar({ onCreateNote, onCourseClick, onFolderClick, onVie
     }
   };
 
-  const loadFolders = async (currentUserId: string) => {
+  const loadFolders = async () => {
     try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) return;
+
       const { data, error } = await supabase
         .from('folders')
         .select('*')
-        .eq('user_id', currentUserId)
+        .eq('user_id', user.id)
         .order('name');
 
       if (error) throw error;

@@ -118,9 +118,16 @@ serve(async (req) => {
     const data = (await response.json()) as Record<string, unknown>;
     const candidates = Array.isArray(data.candidates) ? data.candidates : [];
     const firstCandidate = candidates.length > 0 && typeof candidates[0] === 'object' ? candidates[0] as Record<string, unknown> : null;
-    const parts = Array.isArray(firstCandidate?.content?.parts)
-      ? (firstCandidate?.content?.parts as Array<{ text?: string }>)
+    
+    const content = firstCandidate?.content;
+    const contentObj = (typeof content === 'object' && content !== null) 
+      ? content as Record<string, unknown> 
+      : null;
+
+    const parts = contentObj && Array.isArray(contentObj.parts)
+      ? (contentObj.parts as Array<{ text?: string }>)
       : [];
+      
     const replyText = parts
       .map((part) => part?.text ?? '')
       .filter((text) => text && text.length)

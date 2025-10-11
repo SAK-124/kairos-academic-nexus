@@ -686,13 +686,15 @@ export const AdminPanel = ({ onClose }: AdminPanelProps) => {
       toast({ title: "Saved locally", description: offlineChangeMessage });
       return;
     }
-    const { error } = await supabase
-      .from("content_sections")
-      .upsert({
-        section_name: sectionName,
-        content: payload,
-        updated_at: new Date().toISOString(),
-      });
+      const { error } = await supabase
+        .from("content_sections")
+        .upsert([{
+          section_name: sectionName,
+          content: payload as any,
+          updated_at: new Date().toISOString(),
+        }], {
+          onConflict: 'section_name'
+        });
     if (error) {
       toast({
         title: "Failed to save",

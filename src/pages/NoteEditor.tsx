@@ -247,7 +247,7 @@ export default function NoteEditor() {
           <div className="max-w-4xl mx-auto">
             <TipTapEditor
               noteId={id!}
-              initialContent={note.content}
+              initialContent={note.content as any}
               onSave={setLastSaved}
             />
           </div>

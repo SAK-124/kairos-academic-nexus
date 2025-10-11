@@ -5,8 +5,9 @@ import { ScrollArea } from '@/components/ui/scroll-area';
 import { Sparkles, FileText, HelpCircle, Lightbulb, GraduationCap, Loader2, RefreshCcw, History } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
-import { GeminiClient } from '@/integrations/gemini/client';
+import { GeminiClient, type GeminiMessage } from '@/integrations/gemini/client';
 import { MarkdownRenderer } from '@/components/MarkdownRenderer';
+import type { FlashcardItem, QuizQuestionItem } from '@/types/ai';
 
 interface AIAssistantPanelProps {
   noteId: string;
@@ -42,12 +43,15 @@ export function AIAssistantPanel({ noteId, courseId, folderId, onShowFlashcards,
 
   const setCachedResponse = (actionId: string, cacheKey: string, value: CacheValue) => {
     resultCache.current.set(cacheKey, value);
-    if (actionId === 'flashcards' && value.type === 'flashcards') {
-      onShowFlashcards(value.data);
-      setResponse('Generated flashcards are ready in the study panel.');
-    } else if (actionId === 'quiz' && value.type === 'quiz') {
-      onShowQuiz(value.data);
-      setResponse('Generated quiz questions are available in the study panel.');
+    
+    if (typeof value === 'object' && 'type' in value) {
+      if (actionId === 'flashcards' && value.type === 'flashcards') {
+        onShowFlashcards(value.data);
+        setResponse('Generated flashcards are ready in the study panel.');
+      } else if (actionId === 'quiz' && value.type === 'quiz') {
+        onShowQuiz(value.data);
+        setResponse('Generated quiz questions are available in the study panel.');
+      }
     } else if (typeof value === 'string') {
       setResponse(value);
     }
@@ -62,14 +66,14 @@ export function AIAssistantPanel({ noteId, courseId, folderId, onShowFlashcards,
     }
   };
 
-  const buildMessages = (actionId: string, noteContent: string) => {
+  const buildMessages = (actionId: string, noteContent: string): GeminiMessage[] => {
     const baseSystem = 'You are Kairos, an academic assistant who writes in clear, student-friendly language.';
     switch (actionId) {
       case 'summarize':
         return [
-          { role: 'system', content: `${baseSystem} Provide structured markdown.` },
+          { role: 'system' as const, content: `${baseSystem} Provide structured markdown.` },
           {
-            role: 'user',
+            role: 'user' as const,
             content: `Summarize the following note in 4-6 bullet points and a "Key Takeaway" section. Use markdown headings.
 
 ${noteContent}`,
@@ -77,9 +81,9 @@ ${noteContent}`,
         ];
       case 'qa':
         return [
-          { role: 'system', content: `${baseSystem} Answer based only on the provided note.` },
+          { role: 'system' as const, content: `${baseSystem} Answer based only on the provided note.` },
           {
-            role: 'user',
+            role: 'user' as const,
             content: `Here is the note content:
 ${noteContent}
 
@@ -88,9 +92,9 @@ Question: ${userInput}. Provide a helpful answer with supporting points.`,
         ];
       case 'explain':
         return [
-          { role: 'system', content: `${baseSystem} Teach with analogies when useful.` },
+          { role: 'system' as const, content: `${baseSystem} Teach with analogies when useful.` },
           {
-            role: 'user',
+            role: 'user' as const,
             content: `Explain the following concept from the note so that a busy college student can understand it quickly:
 ${userInput}
 
@@ -100,29 +104,29 @@ ${noteContent}`,
         ];
       case 'flashcards':
         return [
-          { role: 'system', content: `${baseSystem} Return strict JSON only.` },
+          { role: 'system' as const, content: `${baseSystem} Return strict JSON only.` },
           {
-            role: 'user',
+            role: 'user' as const,
             content: `Create 10 spaced-repetition friendly flashcards from this note. Return JSON like {
   "flashcards": [
     { "question": "...", "answer": "..." }
   ]
 }. Questions should be concise and answers should be short.`,
           },
-          { role: 'user', content: noteContent },
+          { role: 'user' as const, content: noteContent },
         ];
       case 'quiz':
         return [
-          { role: 'system', content: `${baseSystem} Return strict JSON only.` },
+          { role: 'system' as const, content: `${baseSystem} Return strict JSON only.` },
           {
-            role: 'user',
+            role: 'user' as const,
             content: `Generate 10 quiz questions with "question", "answer", and "choices" (array with the correct answer included). Return JSON like {
   "questions": [
     { "question": "...", "answer": "...", "choices": ["..."] }
   ]
 }.`,
           },
-          { role: 'user', content: noteContent },
+          { role: 'user' as const, content: noteContent },
         ];
       default:
         return [];

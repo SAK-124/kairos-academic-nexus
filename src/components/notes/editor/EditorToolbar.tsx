@@ -17,7 +17,7 @@ import {
 import type { Editor } from '@tiptap/react';
 import { useState } from 'react';
 import { useToast } from '@/hooks/use-toast';
-import { AiClient } from '@/integrations/ai/client';
+import { GeminiClient } from '@/integrations/gemini/client';
 
 interface EditorToolbarProps {
   editor: Editor;
@@ -46,7 +46,20 @@ export function EditorToolbar({ editor }: EditorToolbarProps) {
         return;
       }
 
-      const formatted = await AiClient.format(plainText);
+      const messages = [
+        {
+          role: 'system' as const,
+          content:
+            'You are a meticulous academic editor. Rewrite the provided plain text into clean semantic HTML for a TipTap editor. Use headings, lists, and emphasis where it improves readability. Do not include <html> or <body> tags.',
+        },
+        {
+          role: 'user' as const,
+          content: `Format this content into HTML while preserving the intent:
+${plainText}`,
+        },
+      ];
+
+      const formatted = await GeminiClient.chat(messages);
 
       if (formatted) {
         editor.commands.setContent(formatted.trim());

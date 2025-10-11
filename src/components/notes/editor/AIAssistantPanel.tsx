@@ -5,8 +5,7 @@ import { ScrollArea } from '@/components/ui/scroll-area';
 import { Sparkles, FileText, HelpCircle, Lightbulb, GraduationCap, Loader2, RefreshCcw, History } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
-import { AiClient } from '@/integrations/ai/client';
-import type { FlashcardItem, FlashcardResult, QuizQuestionItem, QuizResult } from '@/types/ai';
+import { GeminiClient } from '@/integrations/gemini/client';
 import { MarkdownRenderer } from '@/components/MarkdownRenderer';
 
 interface AIAssistantPanelProps {
@@ -18,39 +17,7 @@ interface AIAssistantPanelProps {
   onGeneratingChange: (isGenerating: boolean) => void;
 }
 
-type FlashcardCache = { type: 'flashcards'; data: FlashcardItem[] };
-type QuizCache = { type: 'quiz'; data: QuizQuestionItem[] };
-type CacheValue = string | FlashcardCache | QuizCache;
-
-const isFlashcardResult = (value: FlashcardResult): value is FlashcardItem[] => Array.isArray(value);
-
-const extractFlashcards = (value: FlashcardResult): FlashcardItem[] => {
-  if (isFlashcardResult(value)) {
-    return value;
-  }
-  if (value && typeof value === 'object' && Array.isArray(value.flashcards)) {
-    return value.flashcards;
-  }
-  return [];
-};
-
-const isQuizResult = (value: QuizResult): value is QuizQuestionItem[] => Array.isArray(value);
-
-const extractQuizQuestions = (value: QuizResult): QuizQuestionItem[] => {
-  if (isQuizResult(value)) {
-    return value;
-  }
-  if (value && typeof value === 'object' && Array.isArray(value.questions)) {
-    return value.questions;
-  }
-  return [];
-};
-
-const isFlashcardCache = (value: CacheValue | undefined): value is FlashcardCache =>
-  typeof value === 'object' && value !== null && (value as FlashcardCache).type === 'flashcards';
-
-const isQuizCache = (value: CacheValue | undefined): value is QuizCache =>
-  typeof value === 'object' && value !== null && (value as QuizCache).type === 'quiz';
+type CacheValue = string | { type: 'flashcards'; data: any[] } | { type: 'quiz'; data: any[] };
 
 export function AIAssistantPanel({ noteId, courseId, folderId, onShowFlashcards, onShowQuiz, onGeneratingChange }: AIAssistantPanelProps) {
   const [activeAction, setActiveAction] = useState<string | null>(null);
@@ -75,10 +42,10 @@ export function AIAssistantPanel({ noteId, courseId, folderId, onShowFlashcards,
 
   const setCachedResponse = (actionId: string, cacheKey: string, value: CacheValue) => {
     resultCache.current.set(cacheKey, value);
-    if (actionId === 'flashcards' && isFlashcardCache(value)) {
+    if (actionId === 'flashcards' && value.type === 'flashcards') {
       onShowFlashcards(value.data);
       setResponse('Generated flashcards are ready in the study panel.');
-    } else if (actionId === 'quiz' && isQuizCache(value)) {
+    } else if (actionId === 'quiz' && value.type === 'quiz') {
       onShowQuiz(value.data);
       setResponse('Generated quiz questions are available in the study panel.');
     } else if (typeof value === 'string') {
@@ -92,6 +59,73 @@ export function AIAssistantPanel({ noteId, courseId, folderId, onShowFlashcards,
     setUserInput('');
     if (actionId !== 'qa' && actionId !== 'explain') {
       void processAction(actionId);
+    }
+  };
+
+  const buildMessages = (actionId: string, noteContent: string) => {
+    const baseSystem = 'You are Kairos, an academic assistant who writes in clear, student-friendly language.';
+    switch (actionId) {
+      case 'summarize':
+        return [
+          { role: 'system', content: `${baseSystem} Provide structured markdown.` },
+          {
+            role: 'user',
+            content: `Summarize the following note in 4-6 bullet points and a "Key Takeaway" section. Use markdown headings.
+
+${noteContent}`,
+          },
+        ];
+      case 'qa':
+        return [
+          { role: 'system', content: `${baseSystem} Answer based only on the provided note.` },
+          {
+            role: 'user',
+            content: `Here is the note content:
+${noteContent}
+
+Question: ${userInput}. Provide a helpful answer with supporting points.`,
+          },
+        ];
+      case 'explain':
+        return [
+          { role: 'system', content: `${baseSystem} Teach with analogies when useful.` },
+          {
+            role: 'user',
+            content: `Explain the following concept from the note so that a busy college student can understand it quickly:
+${userInput}
+
+Here is the relevant note context:
+${noteContent}`,
+          },
+        ];
+      case 'flashcards':
+        return [
+          { role: 'system', content: `${baseSystem} Return strict JSON only.` },
+          {
+            role: 'user',
+            content: `Create 10 spaced-repetition friendly flashcards from this note. Return JSON like {
+  "flashcards": [
+    { "question": "...", "answer": "..." }
+  ]
+}. Questions should be concise and answers should be short.`,
+          },
+          { role: 'user', content: noteContent },
+        ];
+      case 'quiz':
+        return [
+          { role: 'system', content: `${baseSystem} Return strict JSON only.` },
+          {
+            role: 'user',
+            content: `Generate 10 quiz questions with "question", "answer", and "choices" (array with the correct answer included). Return JSON like {
+  "questions": [
+    { "question": "...", "answer": "...", "choices": ["..."] }
+  ]
+}.`,
+          },
+          { role: 'user', content: noteContent },
+        ];
+      default:
+        return [];
     }
   };
 
@@ -117,17 +151,19 @@ export function AIAssistantPanel({ noteId, courseId, folderId, onShowFlashcards,
       if (noteError) throw noteError;
 
       const noteContent = noteData?.plain_text || 'No note content provided yet.';
+      const messages = buildMessages(actionId, noteContent);
+
+      if (!messages.length) {
+        throw new Error('Unable to process this request.');
+      }
 
       if (actionId === 'flashcards') {
-        const cachedValue = resultCache.current.get(cacheKey);
-        const response = await AiClient.generateFlashcards({
-          noteId,
-          noteContent,
-          existing: isFlashcardCache(cachedValue) ? cachedValue.data : undefined,
-          refresh,
-        });
-
-        const flashcards = extractFlashcards(response);
+        const result = await GeminiClient.json(messages);
+        const flashcards = Array.isArray(result)
+          ? result
+          : Array.isArray(result?.flashcards)
+            ? result.flashcards
+            : [];
 
         if (!flashcards.length) {
           toast({
@@ -155,15 +191,12 @@ export function AIAssistantPanel({ noteId, courseId, folderId, onShowFlashcards,
       }
 
       if (actionId === 'quiz') {
-        const cachedValue = resultCache.current.get(cacheKey);
-        const response = await AiClient.generateQuiz({
-          noteId,
-          noteContent,
-          existing: isQuizCache(cachedValue) ? cachedValue.data : undefined,
-          refresh,
-        });
-
-        const questions = extractQuizQuestions(response);
+        const result = await GeminiClient.json(messages);
+        const questions = Array.isArray(result)
+          ? result
+          : Array.isArray(result?.questions)
+            ? result.questions
+            : [];
 
         if (!questions.length) {
           toast({
@@ -190,27 +223,10 @@ export function AIAssistantPanel({ noteId, courseId, folderId, onShowFlashcards,
         return;
       }
 
-      let textResponse = '';
-      switch (actionId) {
-        case 'summarize':
-          textResponse = await AiClient.summarizeNote({ noteId, noteContent });
-          break;
-        case 'qa':
-          textResponse = await AiClient.answerQuestion({ noteId, noteContent, question: userInput });
-          break;
-        case 'explain':
-          textResponse = await AiClient.explainConcept({ noteId, noteContent, concept: userInput });
-          break;
-        default:
-          textResponse = await AiClient.chat([
-            { role: 'system', content: 'You are Kairos, an academic assistant.' },
-            { role: 'user', content: userInput || 'Help me organize my notes.' },
-          ]);
-      }
-
+      const textResponse = await GeminiClient.chat(messages);
       const sanitized = textResponse?.trim() || 'No response generated yet.';
       setCachedResponse(actionId, cacheKey, sanitized);
-    } catch (error: unknown) {
+    } catch (error: any) {
       console.error('Error in AI assistant:', error);
       const message = error instanceof Error ? error.message : 'Failed to process request';
       toast({

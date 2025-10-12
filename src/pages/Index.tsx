@@ -13,7 +13,6 @@ import { AuthModal } from "@/components/AuthModal";
 import { AdminPanel } from "@/components/admin/AdminPanel";
 import { AISearchBar } from "@/components/AISearchBar";
 import { Navigation } from "@/components/Navigation";
-import { useToast } from "@/hooks/use-toast";
 import { WaitlistSection } from "@/components/landing/WaitlistSection";
 import { FooterSection } from "@/components/landing/FooterSection";
 import { useAuth } from "@/hooks/useAuth";
@@ -24,8 +23,7 @@ const Index = () => {
   const [showAuthModal, setShowAuthModal] = useState(false);
   const [showAdminPanel, setShowAdminPanel] = useState(false);
   const navigate = useNavigate();
-  const { toast } = useToast();
-  const { user, loading: authLoading } = useAuth();
+  const { user } = useAuth();
   const isAdmin = useAdminStatus(user);
 
   const handleIntroComplete = () => {
@@ -40,11 +38,6 @@ const Index = () => {
 
     if (route.startsWith("http")) {
       window.open(route, "_blank", "noopener,noreferrer");
-      return;
-    }
-
-    if (route === "/scheduler") {
-      toast({ title: "Coming Soon!", description: "The scheduler is almost ready." });
       return;
     }
 

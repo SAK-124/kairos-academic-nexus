@@ -59,6 +59,40 @@ const DAY_OPTIONS = [
 
 type Step = "intro" | "upload" | "chat";
 
+const MAX_SHEET_ROWS = 40;
+const MAX_SHEET_COLUMNS = 20;
+
+const COURSE_EXTRACTION_SYSTEM_PROMPT = `You are a meticulous academic catalog analyst. Convert messy university timetable spreadsheets into a clean JSON representation.
+
+Return only valid JSON that matches this TypeScript interface:
+{
+  "courses": Array<{
+    code: string;
+    title: string;
+    classNumber?: string;
+    days: string[]; // Full day names like Monday
+    startTime: string; // 24-hour HH:MM
+    endTime: string; // 24-hour HH:MM
+    location?: string;
+    instructor?: string;
+    credits?: number;
+    notes?: string;
+  }>;
+}
+
+Guidelines:
+- Use the data from every sheet provided.
+- Detect headers automatically even if they appear mid-sheet or span multiple rows.
+- Ignore summary rows that do not include meeting times.
+- Expand compact day strings (e.g. "MWF" -> Monday, Wednesday, Friday).
+- Convert any times to 24-hour HH:MM.
+- When a column holds both start and end time (e.g. "8:00 AM - 9:15 AM"), split it into startTime and endTime.
+- When data is missing, use an empty string or omit the field.
+- Only include rows that correspond to actual course meeting sections.
+- Prefer the class number/CRN if available.
+- Respond with an empty courses array if nothing usable is found.
+`;
+
 type CourseInput = {
   id: string;
   code: string;
@@ -109,6 +143,12 @@ type AiChatMessage = {
 type AiScheduleProposal = {
   courses: CourseInput[];
   notes?: string;
+};
+
+type SheetPreview = {
+  name: string;
+  rows: string[][];
+  columnSamples?: { columnIndex: number; samples: string[] }[];
 };
 
 const DEFAULT_PREFERENCES: SchedulePreferences = {
@@ -205,6 +245,106 @@ const normalizeTimeString = (input: string) => {
   }
 
   return value;
+};
+
+const normalizeSheetCell = (value: unknown) => {
+  if (typeof value === "string") return value.trim();
+  if (typeof value === "number") return String(value);
+  if (typeof value === "boolean") return value ? "true" : "false";
+  return "";
+};
+
+const readCourseField = (
+  record: Record<string, unknown>,
+  ...keys: string[]
+) => {
+  for (const key of keys) {
+    const value = record[key];
+    if (typeof value === "string" || typeof value === "number") {
+      return String(value);
+    }
+  }
+  return "";
+};
+
+const readCourseNumber = (
+  record: Record<string, unknown>,
+  ...keys: string[]
+) => {
+  for (const key of keys) {
+    const value = record[key];
+    const numeric = Number(value);
+    if (Number.isFinite(numeric)) {
+      return numeric;
+    }
+  }
+  return NaN;
+};
+
+const normalizeAiDays = (value: unknown) => {
+  if (Array.isArray(value)) {
+    return value
+      .flatMap(item => (typeof item === "string" ? parseDayString(item) : []))
+      .filter(Boolean);
+  }
+
+  if (typeof value === "string") {
+    return parseDayString(value);
+  }
+
+  return [];
+};
+
+const extractCoursesWithGemini = async (sheets: SheetPreview[]) => {
+  if (!sheets.length) return [];
+
+  const payload = {
+    context:
+      "Each sheet lists rows from left to right exactly as they appear in the spreadsheet. Use all sheets, detect header rows automatically, and consult the optional columnSamples array to understand what values appear in each column.",
+    sheets,
+  };
+
+  const response = await GeminiClient.json([
+    { role: "system", content: COURSE_EXTRACTION_SYSTEM_PROMPT },
+    {
+      role: "user",
+      content: JSON.stringify(payload),
+    },
+  ]);
+
+  const aiCourses = Array.isArray(response?.courses)
+    ? (response.courses as Record<string, unknown>[])
+    : [];
+
+  return aiCourses.map((course, index) => {
+    const start = normalizeTimeString(
+      readCourseField(course, "startTime", "start_time", "start"),
+    );
+    const end = normalizeTimeString(
+      readCourseField(course, "endTime", "end_time", "end"),
+    );
+    const credits = readCourseNumber(course, "credits", "creditHours", "hours");
+
+    return {
+      id: `${index}-${Date.now()}`,
+      code: readCourseField(course, "code", "courseCode", "subject"),
+      title: readCourseField(course, "title", "name", "courseTitle"),
+      classNumber: readCourseField(
+        course,
+        "classNumber",
+        "class_number",
+        "crn",
+        "section",
+      ),
+      days: normalizeAiDays(course.days ?? course.day ?? course.daysText),
+      startTime: start,
+      endTime: end,
+      location: readCourseField(course, "location", "room", "building"),
+      instructor: readCourseField(course, "instructor", "professor", "faculty"),
+      credits: Number.isFinite(credits) && credits > 0 ? credits : 3,
+      notes: readCourseField(course, "notes", "comment"),
+    };
+  });
 };
 
 const splitCsvLine = (line: string) => {
@@ -323,6 +463,58 @@ const parseJsonCourses = (text: string): CourseInput[] => {
 const parseSpreadsheetCourses = async (file: File): Promise<CourseInput[]> => {
   const buffer = await file.arrayBuffer();
   const workbook = XLSX.read(buffer, { type: "array" });
+  const previews: SheetPreview[] = workbook.SheetNames.map(name => {
+    const sheet = workbook.Sheets[name];
+    const table = XLSX.utils.sheet_to_json<(string | number | boolean | null)[]>(
+      sheet,
+      {
+        header: 1,
+        defval: "",
+        blankrows: false,
+        raw: false,
+      },
+    ) as (string | number | boolean | null)[][];
+
+    const normalized = table
+      .map(row =>
+        row
+          .slice(0, MAX_SHEET_COLUMNS)
+          .map(cell => normalizeSheetCell(cell)),
+      )
+      .filter(row => row.some(cell => cell.length));
+
+    const rows = normalized.slice(0, MAX_SHEET_ROWS);
+    if (!rows.length) return null;
+
+    const columnCount = rows.reduce(
+      (max, row) => Math.max(max, row.length),
+      0,
+    );
+
+    const columnSamples = Array.from({ length: columnCount }).map((_, index) => ({
+      columnIndex: index,
+      samples: rows
+        .map(row => row[index])
+        .filter(value => Boolean(value?.length))
+        .slice(0, 5),
+    }));
+
+    return {
+      name,
+      rows,
+      columnSamples,
+    };
+  }).filter(Boolean) as SheetPreview[];
+
+  try {
+    const aiCourses = await extractCoursesWithGemini(previews);
+    if (aiCourses.length) {
+      return aiCourses;
+    }
+  } catch (error) {
+    console.error("Gemini schedule extraction failed", error);
+  }
+
   const [firstSheet] = workbook.SheetNames;
   if (!firstSheet) return [];
 

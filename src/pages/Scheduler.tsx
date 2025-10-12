@@ -460,6 +460,25 @@ const parseJsonCourses = (text: string): CourseInput[] => {
   });
 };
 
+function sanitizeCourses(courseList: CourseInput[]) {
+  return courseList
+    .map(course => ({
+      ...course,
+      startTime: normalizeTimeString(course.startTime),
+      endTime: normalizeTimeString(course.endTime),
+      days: course.days
+        .map(day => normalizeDay(day))
+        .filter(day => DAY_OPTIONS.includes(day as typeof DAY_OPTIONS[number])),
+    }))
+    .filter(
+      course =>
+        course.days.length > 0 &&
+        Boolean(course.startTime) &&
+        Boolean(course.endTime) &&
+        (course.title || course.code),
+    );
+}
+
 const parseSpreadsheetCourses = async (file: File): Promise<CourseInput[]> => {
   const buffer = await file.arrayBuffer();
   const workbook = XLSX.read(buffer, { type: "array" });
@@ -508,8 +527,9 @@ const parseSpreadsheetCourses = async (file: File): Promise<CourseInput[]> => {
 
   try {
     const aiCourses = await extractCoursesWithGemini(previews);
-    if (aiCourses.length) {
-      return aiCourses;
+    const sanitizedAiCourses = sanitizeCourses(aiCourses);
+    if (sanitizedAiCourses.length) {
+      return sanitizedAiCourses;
     }
   } catch (error) {
     console.error("Gemini schedule extraction failed", error);
@@ -524,24 +544,6 @@ const parseSpreadsheetCourses = async (file: File): Promise<CourseInput[]> => {
   });
   return parseJsonCourses(JSON.stringify(rows));
 };
-
-const sanitizeCourses = (courseList: CourseInput[]) =>
-  courseList
-    .map(course => ({
-      ...course,
-      startTime: normalizeTimeString(course.startTime),
-      endTime: normalizeTimeString(course.endTime),
-      days: course.days
-        .map(day => normalizeDay(day))
-        .filter(day => DAY_OPTIONS.includes(day as typeof DAY_OPTIONS[number])),
-    }))
-    .filter(
-      course =>
-        course.days.length > 0 &&
-        Boolean(course.startTime) &&
-        Boolean(course.endTime) &&
-        (course.title || course.code),
-    );
 
 const buildScheduleFromCourses = (
   validCourses: CourseInput[],

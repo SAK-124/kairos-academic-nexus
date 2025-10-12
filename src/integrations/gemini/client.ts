@@ -1,4 +1,4 @@
-const GEMINI_MODEL = 'gemini-1.5-flash-latest';
+const GEMINI_MODEL = 'gemini-2.5-pro-exp';
 
 interface GeminiMessage {
   role: 'user' | 'model' | 'system';

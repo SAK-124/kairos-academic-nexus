@@ -1,0 +1,80 @@
+name: db-ci
+
+on:
+  pull_request:
+    branches: [ main ]
+  push:
+    branches: [ main ]
+
+jobs:
+  diff:
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: supabase/setup-cli@v1
+        with:
+          version: latest
+      - name: Login
+        run: supabase login --token "${{ secrets.SUPABASE_ACCESS_TOKEN }}"
+      - name: Diff remote → migration
+        run: |
+          mkdir -p supabase/migrations
+          supabase db diff \
+            --project-ref ${{ secrets.SUPABASE_PROJECT_REF }} \
+            --schema public \
+            --use-mig-dir supabase/migrations \
+            --file "supabase/migrations/$(date -u +%Y%m%d%H%M%S)_auto.sql" || true
+      - name: Commit migration if not empty
+        run: |
+          if git status --porcelain supabase/migrations | grep -q '_auto.sql'; then
+            git config user.name "github-actions"
+            git config user.email "actions@github"
+            git add supabase/migrations/*_auto.sql
+            git commit -m "chore(db): auto diff migration"
+            git push
+          fi
+
+  migrate-staging:
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    needs: []
+    steps:
+      - uses: actions/checkout@v4
+      - name: Apply migrations to STAGING
+        env:
+          DATABASE_URL: ${{ secrets.SUPABASE_DB_URL_STAGING }}
+        run: |
+          for f in supabase/migrations/*.sql; do
+            [ -e "$f" ] || continue
+            psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -f "$f"
+          done
+      - name: Seed (optional)
+        if: hashFiles('supabase/seed/seed.sql') != ''
+        env:
+          DATABASE_URL: ${{ secrets.SUPABASE_DB_URL_STAGING }}
+        run: psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -f supabase/seed/seed.sql
+
+  migrate-prod:
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    needs: [migrate-staging]
+    environment:
+      name: production
+      url: https://app.supabase.com/project/${{ secrets.SUPABASE_PROJECT_REF }}/database
+    steps:
+      - uses: actions/checkout@v4
+      - name: Manual approval
+        uses: trstringer/manual-approval@v1
+        with:
+          approvers: ${{ github.repository_owner }}
+          minimum-approvals: 1
+          issue-title: "Approve DB migration to production"
+      - name: Apply migrations to PROD
+        env:
+          DATABASE_URL: ${{ secrets.SUPABASE_DB_URL_PROD }}
+        run: |
+          for f in supabase/migrations/*.sql; do
+            [ -e "$f" ] || continue
+            psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -f "$f"
+          done

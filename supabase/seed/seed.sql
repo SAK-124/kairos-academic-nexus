@@ -1,0 +1,1 @@
+-- Seed data placeholder. Populate with staging defaults when needed.

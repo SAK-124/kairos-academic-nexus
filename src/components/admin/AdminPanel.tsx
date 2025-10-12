@@ -369,6 +369,7 @@ export const AdminPanel = ({ onClose }: AdminPanelProps) => {
   const [aiTestPrompt, setAiTestPrompt] = useState("Summarize upcoming releases in one paragraph.");
   const [aiTestResponse, setAiTestResponse] = useState("");
   const [isOfflineMode, setIsOfflineMode] = useState(false);
+  const [isEnsuringSchema, setIsEnsuringSchema] = useState(false);
   const offlineToastShown = useRef(false);
 
   const coursesParentRef = useRef<HTMLDivElement>(null);
@@ -658,6 +659,51 @@ export const AdminPanel = ({ onClose }: AdminPanelProps) => {
     loadLibrary,
     toast,
   ]);
+
+  const handleEnsureSchema = useCallback(async () => {
+    if (isOfflineMode) {
+      toast({
+        title: "Offline mode",
+        description: "Schema ensure is disabled while using demo data.",
+      });
+      return;
+    }
+
+    setIsEnsuringSchema(true);
+    try {
+      const session = await supabase.auth.getSession();
+      const token = session.data.session?.access_token;
+
+      if (!token) {
+        throw new Error("Missing access token");
+      }
+
+      const response = await fetch("/functions/v1/admin?action=ensure-schema", {
+        method: "POST",
+        headers: { Authorization: `Bearer ${token}` },
+      });
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        throw new Error(errorText || "Failed to ensure schema");
+      }
+
+      toast({
+        title: "Schema ensured",
+        description: "Baseline structures verified on staging.",
+      });
+      void loadAll();
+    } catch (error) {
+      console.error("Failed to ensure schema", error);
+      toast({
+        title: "Ensure schema failed",
+        description: error instanceof Error ? error.message : "Unknown error",
+        variant: "destructive",
+      });
+    } finally {
+      setIsEnsuringSchema(false);
+    }
+  }, [isOfflineMode, loadAll, toast]);
 
   useEffect(() => {
     if (authLoading) {
@@ -1086,6 +1132,16 @@ export const AdminPanel = ({ onClose }: AdminPanelProps) => {
               )}
             </div>
             <div className="flex gap-2">
+              {!isOfflineMode && (
+                <Button variant="outline" className="gap-2" onClick={handleEnsureSchema} disabled={isEnsuringSchema}>
+                  {isEnsuringSchema ? (
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                  ) : (
+                    <DatabaseIcon className="w-4 h-4" />
+                  )}
+                  Ensure schema
+                </Button>
+              )}
               <Button variant="outline" className="gap-2" onClick={loadAll} disabled={isLoading}>
                 {isLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <RefreshCcw className="w-4 h-4" />}
                 Refresh data

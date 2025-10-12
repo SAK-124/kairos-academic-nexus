@@ -12,6 +12,7 @@ import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
 import type { Database } from "@/integrations/supabase/types";
+import { useAuth } from "@/hooks/useAuth";
 import {
   Activity,
   Bot,
@@ -342,6 +343,8 @@ const fallbackContacts: ContactSubmission[] = [
 
 export const AdminPanel = ({ onClose }: AdminPanelProps) => {
   const { toast } = useToast();
+  const { user, loading: authLoading } = useAuth();
+  const [hasAccess, setHasAccess] = useState<boolean | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [loading, setLoading] = useState<LoadingState>(defaultLoadingState);
   const [contentSections, setContentSections] = useState<ContentSections>({});
@@ -657,22 +660,26 @@ export const AdminPanel = ({ onClose }: AdminPanelProps) => {
   ]);
 
   useEffect(() => {
-    const verifyAdminAccess = async () => {
-      try {
-        // Check if user is authenticated
-        const { data: { user }, error: userError } = await supabase.auth.getUser();
-        
-        if (userError || !user) {
-          toast({
-            title: "Not authenticated",
-            description: "Please log in to access the admin panel",
-            variant: "destructive"
-          });
-          onClose();
-          return;
-        }
+    if (authLoading) {
+      return;
+    }
 
-        // Verify admin role
+    if (!user) {
+      toast({
+        title: "Not authenticated",
+        description: "Please log in to access the admin panel",
+        variant: "destructive",
+      });
+      setHasAccess(false);
+      onClose();
+      return;
+    }
+
+    let cancelled = false;
+    setHasAccess(null);
+
+    const verifyAdmin = async () => {
+      try {
         const { data: roleData, error: roleError } = await supabase
           .from("user_roles")
           .select("role")
@@ -680,34 +687,48 @@ export const AdminPanel = ({ onClose }: AdminPanelProps) => {
           .eq("role", "admin")
           .maybeSingle();
 
+        if (cancelled) return;
+
         if (roleError) {
           console.error("Error checking admin role:", roleError);
           markOffline("admin verification", roleError);
-        } else if (!roleData) {
+          setHasAccess(true);
+          return;
+        }
+
+        if (!roleData) {
           toast({
             title: "Access denied",
             description: "You don't have admin privileges",
-            variant: "destructive"
+            variant: "destructive",
           });
+          setHasAccess(false);
           onClose();
           return;
         }
 
-        // User is authenticated and has admin role, proceed to load data
-        void loadAll();
+        setHasAccess(true);
       } catch (error) {
+        if (cancelled) return;
         console.error("Admin verification failed:", error);
-        toast({
-          title: "Verification failed",
-          description: error instanceof Error ? error.message : "Could not verify admin access",
-          variant: "destructive"
-        });
-        onClose();
+        markOffline("admin verification", error);
+        setHasAccess(true);
       }
     };
 
-    verifyAdminAccess();
-  }, [loadAll, toast, onClose, markOffline]);
+    void verifyAdmin();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [authLoading, user, toast, onClose, markOffline]);
+
+  useEffect(() => {
+    if (!hasAccess) {
+      return;
+    }
+    void loadAll();
+  }, [hasAccess, loadAll]);
 
   const handleSaveAiConfig = async () => {
     if (!hasConfigChanges) return;
@@ -1016,6 +1037,18 @@ export const AdminPanel = ({ onClose }: AdminPanelProps) => {
       },
     ];
   }, [notes.length, courses.length, folders.length, contacts]);
+
+  if (authLoading || hasAccess === null) {
+    return (
+      <div className="fixed inset-0 z-50 flex items-center justify-center bg-background/95 backdrop-blur">
+        <Loader2 className="w-6 h-6 animate-spin text-primary" />
+      </div>
+    );
+  }
+
+  if (hasAccess === false) {
+    return null;
+  }
 
   const heroContent = (contentSections["hero"] as HeroContent | undefined) ?? {};
   const socialContent = (contentSections["social-proof"] as SocialProofContent | undefined) ?? {};

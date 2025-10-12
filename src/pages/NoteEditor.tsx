@@ -12,6 +12,7 @@ import { QuizViewer } from '@/components/notes/QuizViewer';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import type { Database } from '@/integrations/supabase/types';
 import type { FlashcardItem, QuizQuestionItem } from '@/types/ai';
+import { useAuth } from '@/hooks/useAuth';
 
 type NoteRow = Database['public']['Tables']['notes']['Row'];
 type CourseRow = Database['public']['Tables']['courses']['Row'];
@@ -33,6 +34,8 @@ export default function NoteEditor() {
   const [isGenerating, setIsGenerating] = useState(false);
   const [courses, setCourses] = useState<CourseRow[]>([]);
   const [folders, setFolders] = useState<FolderRow[]>([]);
+
+  const { user, loading: authLoading } = useAuth();
 
   const loadNote = useCallback(async () => {
     try {
@@ -61,31 +64,18 @@ export default function NoteEditor() {
     }
   }, [id, navigate, toast]);
 
-  const checkAuthAndLoadNote = useCallback(async () => {
-    const { data: { session } } = await supabase.auth.getSession();
-    if (!session) {
-      navigate('/?auth=true');
-      return;
-    }
-
-    await loadNote();
-  }, [loadNote, navigate]);
-
-  const loadCoursesAndFolders = useCallback(async () => {
-    const { data: { session } } = await supabase.auth.getSession();
-    if (!session) return;
-
+  const loadCoursesAndFolders = useCallback(async (userId: string) => {
     const [coursesData, foldersData] = await Promise.all([
       supabase
         .from('courses')
         .select('id,name,code,color,updated_at,user_id')
-        .eq('user_id', session.user.id)
+        .eq('user_id', userId)
         .order('name')
         .range(0, 199),
       supabase
         .from('folders')
         .select('id,name,parent_id,course_id,updated_at,user_id,description')
-        .eq('user_id', session.user.id)
+        .eq('user_id', userId)
         .order('name')
         .range(0, 199),
     ]);
@@ -95,9 +85,18 @@ export default function NoteEditor() {
   }, []);
 
   useEffect(() => {
-    void checkAuthAndLoadNote();
-    void loadCoursesAndFolders();
-  }, [checkAuthAndLoadNote, loadCoursesAndFolders]);
+    if (authLoading) {
+      return;
+    }
+
+    if (!user) {
+      navigate('/?auth=true', { replace: true });
+      return;
+    }
+
+    void loadNote();
+    void loadCoursesAndFolders(user.id);
+  }, [authLoading, user, loadNote, loadCoursesAndFolders, navigate]);
 
   const handleTitleChange = async (newTitle: string) => {
     setTitle(newTitle);

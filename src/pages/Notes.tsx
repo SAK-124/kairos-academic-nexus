@@ -1,8 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import type { User } from '@supabase/supabase-js';
 import { useVirtualizer } from '@tanstack/react-virtual';
-import { supabase } from '@/integrations/supabase/client';
 import { Button } from '@/components/ui/button';
 import { Plus, Loader2 } from 'lucide-react';
 import { NoteCard } from '@/components/notes/NoteCard';
@@ -14,11 +12,11 @@ import { FlashcardViewer } from '@/components/notes/FlashcardViewer';
 import { QuizViewer } from '@/components/notes/QuizViewer';
 import { useNotesWorkspace } from '@/hooks/useNotesWorkspace';
 import { useLocalStorage } from '@/hooks/useLocalStorage';
+import { useAuth } from '@/hooks/useAuth';
 
 const PAGE_SIZE = 30;
 
 export default function Notes() {
-  const [user, setUser] = useState<User | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedCourseId, setSelectedCourseId] = useState<string | null>(null);
   const [selectedFolderId, setSelectedFolderId] = useState<string | null>(null);
@@ -27,6 +25,7 @@ export default function Notes() {
   const [page, setPage] = useState(0);
   const navigate = useNavigate();
   const { toast } = useToast();
+  const { user, loading: authLoading } = useAuth();
 
   const userId = user?.id;
   const orderStorageKey = `notes-order-${userId ?? 'guest'}-page-${page}`;
@@ -66,9 +65,14 @@ export default function Notes() {
   );
 
   useEffect(() => {
-    void checkAuth();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+    if (authLoading) {
+      return;
+    }
+
+    if (!user) {
+      navigate('/?auth=true', { replace: true });
+    }
+  }, [authLoading, user, navigate]);
 
   useEffect(() => {
     setNoteOrder((prev) => {
@@ -128,17 +132,6 @@ export default function Notes() {
     estimateSize: () => 280,
     overscan: 8,
   });
-
-  async function checkAuth() {
-    const {
-      data: { session },
-    } = await supabase.auth.getSession();
-    if (!session) {
-      navigate('/?auth=true');
-    } else {
-      setUser(session.user);
-    }
-  }
 
   const handleCreateNote = useCallback(async () => {
     if (!userId) return;

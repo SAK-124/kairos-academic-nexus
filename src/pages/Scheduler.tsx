@@ -18,7 +18,6 @@ import {
 import { useNavigate } from "react-router-dom";
 import { Navigation } from "@/components/Navigation";
 import { useCallback, useEffect, useMemo, useState } from "react";
-import type { User } from "@supabase/supabase-js";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { WaitlistForm } from "@/components/WaitListForm";
@@ -43,6 +42,8 @@ import { Switch } from "@/components/ui/switch";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
+import { useAuth } from "@/hooks/useAuth";
+import { useAdminStatus } from "@/hooks/useAdminStatus";
 
 const DAY_OPTIONS = [
   "Monday",
@@ -315,8 +316,8 @@ const parseJsonCourses = (text: string): CourseInput[] => {
 const Scheduler = () => {
   const navigate = useNavigate();
   const { toast } = useToast();
-  const [user, setUser] = useState<User | null>(null);
-  const [isAdmin, setIsAdmin] = useState(false);
+  const { user, loading: authLoading } = useAuth();
+  const isAdmin = useAdminStatus(user);
   const [courses, setCourses] = useState<CourseInput[]>([createEmptyCourse()]);
   const [preferences, setPreferences] = useState<SchedulePreferences>({
     preferredDays: ["Monday", "Tuesday", "Wednesday", "Thursday"],
@@ -337,39 +338,12 @@ const Scheduler = () => {
   );
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
-  const checkAdminStatus = useCallback(async (currentUser: User | null | undefined) => {
-    if (!currentUser) {
-      setIsAdmin(false);
+  useEffect(() => {
+    if (authLoading || user) {
       return;
     }
-    const { data } = await supabase
-      .from("user_roles")
-      .select("role")
-      .eq("user_id", currentUser.id)
-      .eq("role", "admin")
-      .maybeSingle();
-    setIsAdmin(!!data);
-  }, []);
-
-  const checkUser = useCallback(async () => {
-    const {
-      data: { session },
-    } = await supabase.auth.getSession();
-    setUser(session?.user ?? null);
-    checkAdminStatus(session?.user ?? null);
-  }, [checkAdminStatus]);
-
-  useEffect(() => {
-    checkUser();
-    const {
-      data: { subscription },
-    } = supabase.auth.onAuthStateChange((_event, session) => {
-      setUser(session?.user ?? null);
-      checkAdminStatus(session?.user ?? null);
-    });
-
-    return () => subscription.unsubscribe();
-  }, [checkAdminStatus, checkUser]);
+    setPersistedToSupabase(null);
+  }, [authLoading, user]);
 
   const togglePreferredDay = (day: string) => {
     setPreferences(prev => ({

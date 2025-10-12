@@ -1,28 +1,10 @@
 import { Navigation } from "@/components/Navigation";
-import { useEffect, useState } from "react";
-import { supabase } from "@/integrations/supabase/client";
-import type { User as SupabaseUser } from "@supabase/supabase-js";
+import { useAuth } from "@/hooks/useAuth";
+import { useAdminStatus } from "@/hooks/useAdminStatus";
 
 const TermsOfService = () => {
-  const [user, setUser] = useState<SupabaseUser | null>(null);
-  const [isAdmin, setIsAdmin] = useState(false);
-
-  useEffect(() => {
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      setUser(session?.user ?? null);
-      if (session?.user) {
-        supabase
-          .from("user_roles")
-          .select("role")
-          .eq("user_id", session.user.id)
-          .eq("role", "admin")
-          .maybeSingle()
-          .then(({ data }) => {
-            setIsAdmin(!!data);
-          });
-      }
-    });
-  }, []);
+  const { user } = useAuth();
+  const isAdmin = useAdminStatus(user);
 
   return (
     <div className="min-h-screen bg-background">

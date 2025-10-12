@@ -1,49 +1,51 @@
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
 import {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type ComponentType,
+} from "react";
+import { useNavigate } from "react-router-dom";
+import {
+  AlertTriangle,
   ArrowLeft,
   Calendar,
-  Brain,
-  CheckCircle,
+  CheckCircle2,
+  FileSpreadsheet,
+  Loader2,
+  MessagesSquare,
+  RefreshCw,
+  Send,
   Sparkles,
   Upload,
-  Settings,
-  AlertTriangle,
-  Download,
-  CalendarPlus,
-  Clock,
-  BookOpen,
-  Loader2,
 } from "lucide-react";
-import { useNavigate } from "react-router-dom";
+import * as XLSX from "xlsx";
+
 import { Navigation } from "@/components/Navigation";
-import { useCallback, useEffect, useMemo, useState } from "react";
-import { supabase } from "@/integrations/supabase/client";
-import { useToast } from "@/hooks/use-toast";
 import { WaitlistForm } from "@/components/WaitListForm";
+import { MarkdownRenderer } from "@/components/MarkdownRenderer";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import {
   Card,
   CardContent,
   CardDescription,
+  CardFooter,
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
-import { Slider } from "@/components/ui/slider";
-import { Switch } from "@/components/ui/switch";
-import { Checkbox } from "@/components/ui/checkbox";
-import { Badge } from "@/components/ui/badge";
-import { cn } from "@/lib/utils";
+import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/hooks/useAuth";
 import { useAdminStatus } from "@/hooks/useAdminStatus";
+import { cn } from "@/lib/utils";
+import {
+  GeminiClient,
+  type GeminiMessage,
+} from "@/integrations/gemini/client";
 
 const DAY_OPTIONS = [
   "Monday",
@@ -53,12 +55,15 @@ const DAY_OPTIONS = [
   "Friday",
   "Saturday",
   "Sunday",
-];
+] as const;
+
+type Step = "intro" | "upload" | "chat";
 
 type CourseInput = {
   id: string;
   code: string;
   title: string;
+  classNumber?: string;
   days: string[];
   startTime: string;
   endTime: string;
@@ -69,14 +74,10 @@ type CourseInput = {
 };
 
 type SchedulePreferences = {
-  preferredDays: string[];
   earliestStart: string;
   latestEnd: string;
   breakMinutes: number;
-  scheduleDensity: "compact" | "balanced" | "spacious";
   allowEvening: boolean;
-  preferOnline: boolean;
-  additionalNotes: string;
 };
 
 type ScheduledBlock = CourseInput & {
@@ -100,20 +101,24 @@ type GeneratedSchedule = {
   };
 };
 
-const createEmptyCourse = (): CourseInput => ({
-  id: typeof crypto !== "undefined" && "randomUUID" in crypto
-    ? crypto.randomUUID()
-    : Math.random().toString(36).slice(2),
-  code: "",
-  title: "",
-  days: ["Monday", "Wednesday"],
-  startTime: "09:00",
-  endTime: "10:15",
-  location: "",
-  instructor: "",
-  credits: 3,
-  notes: "",
-});
+type AiChatMessage = {
+  role: "user" | "assistant";
+  content: string;
+};
+
+type AiScheduleProposal = {
+  courses: CourseInput[];
+  notes?: string;
+};
+
+const DEFAULT_PREFERENCES: SchedulePreferences = {
+  earliestStart: "07:00",
+  latestEnd: "22:00",
+  breakMinutes: 15,
+  allowEvening: true,
+};
+
+const SYSTEM_PROMPT = `You are Kairos, an empathetic academic scheduling assistant helping a student build their semester timetable.\n\nFollow this workflow:\n1. Greet the student and briefly acknowledge you read the uploaded catalog.\n2. Ask in conversational English which courses they want and any preferences such as days, times, breaks, online/in-person, or workload balance.\n3. Ask for clarifications when needed before producing a full plan.\n4. When you have enough detail, propose a complete schedule. Provide a natural language explanation and include a fenced code block using the language label SCHEDULE_JSON with strictly valid JSON. The JSON must follow this schema:\n{\n  "courses": [\n    {\n      "code": "CS 201",\n      "title": "Data Structures",\n      "classNumber": "12345",\n      "days": ["Monday", "Wednesday"],\n      "startTime": "09:00",\n      "endTime": "10:15",\n      "location": "Engineering 210",\n      "instructor": "Dr. Smith",\n      "credits": 3,\n      "notes": "Optional extra information"\n    }\n  ],\n  "notes": "Any high level guidance or reminders for the student"\n}\n- Use 24-hour HH:MM format for times.\n- Use full day names (e.g. Monday).\n- Always populate code, title, days, startTime, and endTime for every course.\n- If class numbers or instructors are not provided in the catalog, leave them blank.\n5. If the student requests changes after a proposal, provide an updated recommendation with a new SCHEDULE_JSON block.\n6. Never invent courses that are not in the catalog. When suggesting sections, use the closest matching option from the uploaded data.\n\nDo not produce the JSON block until you are ready with a complete plan. Do not include multiple JSON blocks in the same response.`;
 
 const timeStringToMinutes = (value: string) => {
   if (!value) return 0;
@@ -163,7 +168,7 @@ const parseDayString = (input: string) => {
     .map(part => part.trim())
     .filter(Boolean)
     .map(normalizeDay)
-    .filter(day => DAY_OPTIONS.includes(day));
+    .filter(day => DAY_OPTIONS.includes(day as typeof DAY_OPTIONS[number]));
 };
 
 const normalizeTimeString = (input: string) => {
@@ -210,7 +215,7 @@ const splitCsvLine = (line: string) => {
   for (let i = 0; i < line.length; i++) {
     const char = line[i];
 
-    if (char === '"') {
+    if (char === "\"") {
       inQuotes = !inQuotes;
       continue;
     }
@@ -247,7 +252,7 @@ const parseCsvCourses = (text: string): CourseInput[] => {
       return idx >= 0 ? cells[idx] : "";
     };
 
-    const days = parseDayString(getValue(["days", "day", "meets"]));
+    const days = parseDayString(getValue(["days", "day", "meets", "meeting_days"]));
     const start = normalizeTimeString(
       getValue(["start", "start_time", "starttime", "begin"]),
     );
@@ -260,8 +265,9 @@ const parseCsvCourses = (text: string): CourseInput[] => {
 
     return {
       id: `${index}-${Date.now()}`,
-      code: getValue(["code", "course", "course_code"]),
+      code: getValue(["code", "course", "course_code", "subject"]),
       title: getValue(["title", "name", "course_name"]),
+      classNumber: getValue(["class_number", "classnumber", "crn", "section"]),
       days,
       startTime: start,
       endTime: end,
@@ -300,9 +306,10 @@ const parseJsonCourses = (text: string): CourseInput[] => {
 
     return {
       id: `${index}-${Date.now()}`,
-      code: readValue("code", "course", "course_code"),
+      code: readValue("code", "course", "course_code", "subject"),
       title: readValue("title", "name") || `Course ${index + 1}`,
-      days: parseDayString(readValue("days", "meets", "day")),
+      classNumber: readValue("class_number", "classNumber", "crn", "section"),
+      days: parseDayString(readValue("days", "meets", "day", "meeting_days")),
       startTime: start,
       endTime: end,
       location: readValue("location", "room"),
@@ -313,568 +320,667 @@ const parseJsonCourses = (text: string): CourseInput[] => {
   });
 };
 
-const Scheduler = () => {
-  const navigate = useNavigate();
-  const { toast } = useToast();
-  const { user, loading: authLoading } = useAuth();
-  const isAdmin = useAdminStatus(user);
-  const [courses, setCourses] = useState<CourseInput[]>([createEmptyCourse()]);
-  const [preferences, setPreferences] = useState<SchedulePreferences>({
-    preferredDays: ["Monday", "Tuesday", "Wednesday", "Thursday"],
-    earliestStart: "08:00",
-    latestEnd: "18:00",
-    breakMinutes: 30,
-    scheduleDensity: "balanced",
-    allowEvening: false,
-    preferOnline: false,
-    additionalNotes: "",
+const parseSpreadsheetCourses = async (file: File): Promise<CourseInput[]> => {
+  const buffer = await file.arrayBuffer();
+  const workbook = XLSX.read(buffer, { type: "array" });
+  const [firstSheet] = workbook.SheetNames;
+  if (!firstSheet) return [];
+
+  const sheet = workbook.Sheets[firstSheet];
+  const rows = XLSX.utils.sheet_to_json<Record<string, unknown>>(sheet, {
+    defval: "",
   });
-  const [uploadedFileName, setUploadedFileName] = useState<string | null>(null);
-  const [isGenerating, setIsGenerating] = useState(false);
-  const [generatedSchedule, setGeneratedSchedule] =
-    useState<GeneratedSchedule | null>(null);
-  const [persistedToSupabase, setPersistedToSupabase] = useState<boolean | null>(
-    null,
-  );
-  const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  return parseJsonCourses(JSON.stringify(rows));
+};
 
-  useEffect(() => {
-    if (authLoading || user) {
-      return;
-    }
-    setPersistedToSupabase(null);
-  }, [authLoading, user]);
-
-  const togglePreferredDay = (day: string) => {
-    setPreferences(prev => ({
-      ...prev,
-      preferredDays: prev.preferredDays.includes(day)
-        ? prev.preferredDays.filter(existing => existing !== day)
-        : [...prev.preferredDays, day],
-    }));
-  };
-
-  const handleCourseChange = <K extends keyof CourseInput>(
-    courseId: string,
-    key: K,
-    value: CourseInput[K],
-  ) => {
-    setCourses(prev =>
-      prev.map(course =>
-        course.id === courseId
-          ? {
-              ...course,
-              [key]: value,
-            }
-          : course,
-      ),
+const sanitizeCourses = (courseList: CourseInput[]) =>
+  courseList
+    .map(course => ({
+      ...course,
+      startTime: normalizeTimeString(course.startTime),
+      endTime: normalizeTimeString(course.endTime),
+      days: course.days
+        .map(day => normalizeDay(day))
+        .filter(day => DAY_OPTIONS.includes(day as typeof DAY_OPTIONS[number])),
+    }))
+    .filter(
+      course =>
+        course.days.length > 0 &&
+        Boolean(course.startTime) &&
+        Boolean(course.endTime) &&
+        (course.title || course.code),
     );
-  };
 
-  const handleCourseDayToggle = (courseId: string, day: string, checked: boolean) => {
-    setCourses(prev =>
-      prev.map(course => {
-        if (course.id !== courseId) return course;
-        const currentDays = new Set(course.days);
-        if (checked) {
-          currentDays.add(day);
-        } else {
-          currentDays.delete(day);
-        }
-        const normalized = Array.from(currentDays);
-        return {
-          ...course,
-          days: normalized.length > 0 ? normalized : [day],
-        };
-      }),
-    );
-  };
+const buildScheduleFromCourses = (
+  validCourses: CourseInput[],
+  prefs: SchedulePreferences,
+): GeneratedSchedule => {
+  const blocksByDay: Record<string, ScheduledBlock[]> = {};
+  const conflicts: ScheduleConflict[] = [];
+  const earliestPreferred = timeStringToMinutes(prefs.earliestStart);
+  const latestPreferred = timeStringToMinutes(prefs.latestEnd);
 
-  const addCourse = () => {
-    setCourses(prev => [...prev, createEmptyCourse()]);
-  };
-
-  const removeCourse = (courseId: string) => {
-    setCourses(prev =>
-      prev.length === 1 ? prev : prev.filter(course => course.id !== courseId),
-    );
-  };
-
-  const handleFileUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
-    const file = event.target.files?.[0];
-    if (!file) return;
-
-    const reader = new FileReader();
-    reader.onload = () => {
-      try {
-        const text = reader.result as string;
-        let parsedCourses: CourseInput[] = [];
-
-        if (file.name.endsWith(".json")) {
-          parsedCourses = parseJsonCourses(text);
-        } else {
-          parsedCourses = parseCsvCourses(text);
-        }
-
-        if (!parsedCourses.length) {
-          throw new Error("No course rows detected. Check your template format.");
-        }
-
-        setCourses(parsedCourses.map(course => ({
-          ...course,
-          id:
-            typeof crypto !== "undefined" && "randomUUID" in crypto
-              ? crypto.randomUUID()
-              : Math.random().toString(36).slice(2),
-        })));
-        setUploadedFileName(file.name);
-        toast({
-          title: "Course data uploaded",
-          description: `${parsedCourses.length} course${
-            parsedCourses.length === 1 ? "" : "s"
-          } ready to schedule.`,
-        });
-      } catch (error) {
-        console.error("Failed to parse course data", error);
-        const message =
-          error instanceof Error
-            ? error.message
-            : "We couldn't read that file. Try CSV or JSON format.";
-        toast({
-          title: "Upload failed",
-          description: message,
-          variant: "destructive",
-        });
+  validCourses.forEach(course => {
+    course.days.forEach(day => {
+      if (!blocksByDay[day]) {
+        blocksByDay[day] = [];
       }
-    };
-
-    reader.onerror = () => {
-      toast({
-        title: "Upload failed",
-        description: "We couldn't read that file. Please try again.",
-        variant: "destructive",
-      });
-    };
-
-    reader.readAsText(file);
-  };
-
-  const sanitizeCourses = (courseList: CourseInput[]) =>
-    courseList
-      .map(course => ({
+      blocksByDay[day].push({
         ...course,
-        startTime: normalizeTimeString(course.startTime),
-        endTime: normalizeTimeString(course.endTime),
-        days: course.days.filter(day => DAY_OPTIONS.includes(day)),
-      }))
-      .filter(
-        course =>
-          course.days.length > 0 &&
-          Boolean(course.startTime) &&
-          Boolean(course.endTime) &&
-          (course.title || course.code),
-      );
-
-  const persistScheduleRequest = async (
-    payload: Record<string, unknown>,
-  ): Promise<boolean> => {
-    let savedToSupabase = false;
-
-    if (user) {
-      // TODO: Create schedule_requests table or remove this feature
-      console.log('Schedule request payload:', { user_id: user.id, ...payload });
-      savedToSupabase = true;
-      /*
-      const { error } = await supabase.from("schedule_requests").insert([
-        {
-          user_id: user.id,
-          ...payload,
-        },
-      ]);
-
-      if (!error) {
-        savedToSupabase = true;
-      } else {
-        console.warn("Failed to persist schedule request", error);
-      }
-      */
-    }
-
-    if (!savedToSupabase && typeof window !== "undefined") {
-      try {
-        const existing = JSON.parse(
-          window.localStorage.getItem("kairos-schedule-requests") ?? "[]",
-        );
-        const updated = [
-          ...existing,
-          {
-            created_at: new Date().toISOString(),
-            ...payload,
-          },
-        ];
-        window.localStorage.setItem(
-          "kairos-schedule-requests",
-          JSON.stringify(updated),
-        );
-      } catch (error) {
-        console.warn("Failed to persist schedule request locally", error);
-      }
-    }
-
-    setPersistedToSupabase(savedToSupabase);
-    return savedToSupabase;
-  };
-
-  const buildScheduleFromCourses = (
-    validCourses: CourseInput[],
-    prefs: SchedulePreferences,
-  ): GeneratedSchedule => {
-    const blocksByDay: Record<string, ScheduledBlock[]> = {};
-    const conflicts: ScheduleConflict[] = [];
-    const earliestPreferred = timeStringToMinutes(prefs.earliestStart);
-    const latestPreferred = timeStringToMinutes(prefs.latestEnd);
-
-    validCourses.forEach(course => {
-      course.days.forEach(day => {
-        if (!blocksByDay[day]) {
-          blocksByDay[day] = [];
-        }
-        blocksByDay[day].push({
-          ...course,
-          day,
-          conflict: false,
-        });
+        day,
+        conflict: false,
       });
     });
+  });
 
-    const dayMinutes: Record<string, number> = {};
+  const dayMinutes: Record<string, number> = {};
 
-    Object.entries(blocksByDay).forEach(([day, blocks]) => {
-      blocks.sort(
-        (a, b) => timeStringToMinutes(a.startTime) - timeStringToMinutes(b.startTime),
-      );
+  Object.entries(blocksByDay).forEach(([day, blocks]) => {
+    blocks.sort(
+      (a, b) => timeStringToMinutes(a.startTime) - timeStringToMinutes(b.startTime),
+    );
 
-      for (let i = 0; i < blocks.length; i++) {
-        const current = blocks[i];
-        const currentStart = timeStringToMinutes(current.startTime);
-        const currentEnd = timeStringToMinutes(current.endTime);
-        dayMinutes[day] = (dayMinutes[day] ?? 0) + (currentEnd - currentStart);
+    for (let i = 0; i < blocks.length; i++) {
+      const current = blocks[i];
+      const currentStart = timeStringToMinutes(current.startTime);
+      const currentEnd = timeStringToMinutes(current.endTime);
+      dayMinutes[day] = (dayMinutes[day] ?? 0) + (currentEnd - currentStart);
 
-        if (!prefs.allowEvening) {
-          if (currentStart < earliestPreferred || currentEnd > latestPreferred) {
-            current.conflict = true;
-            conflicts.push({
-              day,
-              overlappingCourses: [current.title || current.code],
-              message: `${current.title || current.code} sits outside your preferred time window`,
-            });
-          }
+      if (!prefs.allowEvening) {
+        if (currentStart < earliestPreferred || currentEnd > latestPreferred) {
+          current.conflict = true;
+          conflicts.push({
+            day,
+            overlappingCourses: [current.title || current.code],
+            message: `${current.title || current.code} sits outside your preferred time window`,
+          });
         }
+      }
 
-        if (i < blocks.length - 1) {
-          const next = blocks[i + 1];
-          const nextStart = timeStringToMinutes(next.startTime);
-          const nextEnd = timeStringToMinutes(next.endTime);
+      if (i < blocks.length - 1) {
+        const next = blocks[i + 1];
+        const nextStart = timeStringToMinutes(next.startTime);
+        const nextEnd = timeStringToMinutes(next.endTime);
 
-          if (nextStart < currentEnd) {
-            current.conflict = true;
-            next.conflict = true;
+        if (nextStart < currentEnd) {
+          current.conflict = true;
+          next.conflict = true;
+          conflicts.push({
+            day,
+            overlappingCourses: [
+              current.title || current.code,
+              next.title || next.code,
+            ].filter(Boolean),
+            message: `${current.title || current.code} overlaps with ${
+              next.title || next.code
+            }`,
+          });
+        } else {
+          const gap = nextStart - currentEnd;
+          if (gap > 0 && gap < prefs.breakMinutes) {
             conflicts.push({
               day,
               overlappingCourses: [
                 current.title || current.code,
                 next.title || next.code,
               ].filter(Boolean),
-              message: `${current.title || current.code} overlaps with ${
-                next.title || next.code
-              }`,
-            });
-          } else {
-            const gap = nextStart - currentEnd;
-            if (gap > 0 && gap < prefs.breakMinutes) {
-              conflicts.push({
-                day,
-                overlappingCourses: [
-                  current.title || current.code,
-                  next.title || next.code,
-                ].filter(Boolean),
-                message: `Only ${gap} minute break between ${
-                  current.title || current.code
-                } and ${next.title || next.code}`,
-              });
-            }
-          }
-
-          if (!prefs.allowEvening && nextEnd > latestPreferred) {
-            next.conflict = true;
-            conflicts.push({
-              day,
-              overlappingCourses: [next.title || next.code],
-              message: `${next.title || next.code} ends after your preferred time`,
+              message: `Only ${gap} minute break between ${
+                current.title || current.code
+              } and ${next.title || next.code}`,
             });
           }
         }
+
+        if (!prefs.allowEvening && nextEnd > latestPreferred) {
+          next.conflict = true;
+          conflicts.push({
+            day,
+            overlappingCourses: [next.title || next.code],
+            message: `${next.title || next.code} ends after your preferred time`,
+          });
+        }
       }
-    });
-
-    const seen = new Set<string>();
-    const dedupedConflicts = conflicts.filter(conflict => {
-      const key = `${conflict.day}:${conflict.overlappingCourses
-        .slice()
-        .sort()
-        .join("-")}:${conflict.message}`;
-      if (seen.has(key)) return false;
-      seen.add(key);
-      return true;
-    });
-
-    const totalCredits = validCourses.reduce(
-      (sum, course) => sum + (Number(course.credits) || 0),
-      0,
-    );
-    const totalMeetings = Object.values(blocksByDay).reduce(
-      (sum, blocks) => sum + blocks.length,
-      0,
-    );
-    const averageDailyHours = Object.keys(dayMinutes).length
-      ? Number(
-          (
-            Object.values(dayMinutes).reduce((minutes, value) => minutes + value, 0) /
-            60 /
-            Object.keys(dayMinutes).length
-          ).toFixed(2),
-        )
-      : 0;
-
-    return {
-      blocksByDay,
-      conflicts: dedupedConflicts,
-      summary: {
-        totalCredits,
-        totalMeetings,
-        averageDailyHours,
-      },
-    };
-  };
-
-  const handleGenerateSchedule = async () => {
-    setErrorMessage(null);
-
-    const validCourses = sanitizeCourses(courses);
-    if (!validCourses.length) {
-      setErrorMessage("Add at least one course with meeting days and times to generate a schedule.");
-      toast({
-        title: "We need more info",
-        description: "Add course times and meeting days before generating a schedule.",
-        variant: "destructive",
-      });
-      return;
     }
+  });
 
-    setIsGenerating(true);
+  const seen = new Set<string>();
+  const dedupedConflicts = conflicts.filter(conflict => {
+    const key = `${conflict.day}:${conflict.overlappingCourses
+      .slice()
+      .sort()
+      .join("-")}:${conflict.message}`;
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
 
-    const payload = {
-      courses: validCourses,
-      preferences,
-      uploaded_file_name: uploadedFileName,
-    };
-
-    try {
-      await persistScheduleRequest(payload);
-
-      const schedule = buildScheduleFromCourses(validCourses, preferences);
-      setGeneratedSchedule(schedule);
-
-      toast({
-        title: "Schedule ready",
-        description: schedule.conflicts.length
-          ? `Generated with ${schedule.conflicts.length} potential conflict${
-              schedule.conflicts.length === 1 ? "" : "s"
-            }.`
-          : "Your classes are conflict-free and ready to review!",
-      });
-    } catch (error) {
-      console.error("Failed to generate schedule", error);
-      const message =
-        error instanceof Error
-          ? error.message
-          : "We couldn't build a schedule. Please try again.";
-      setErrorMessage(message);
-      toast({
-        title: "Generation failed",
-        description: message,
-        variant: "destructive",
-      });
-    } finally {
-      setIsGenerating(false);
-    }
-  };
-
-  const scheduleBounds = useMemo(() => {
-    const defaultStart = timeStringToMinutes(preferences.earliestStart);
-    const defaultEnd = timeStringToMinutes(preferences.latestEnd);
-
-    if (!generatedSchedule) {
-      return {
-        start: defaultStart,
-        end: defaultEnd,
-      };
-    }
-
-    const blocks = Object.values(generatedSchedule.blocksByDay).flat();
-    if (!blocks.length) {
-      return {
-        start: defaultStart,
-        end: defaultEnd,
-      };
-    }
-
-    const earliest = Math.min(
-      ...blocks.map(block => timeStringToMinutes(block.startTime)),
-    );
-    const latest = Math.max(
-      ...blocks.map(block => timeStringToMinutes(block.endTime)),
-    );
-
-    const padding = 30;
-
-    return {
-      start: Math.max(0, Math.min(defaultStart, earliest) - padding),
-      end: Math.min(24 * 60, Math.max(defaultEnd, latest) + padding),
-    };
-  }, [generatedSchedule, preferences.earliestStart, preferences.latestEnd]);
-
-  const availableDays = useMemo(() => {
-    if (!generatedSchedule) {
-      return preferences.preferredDays.length
-        ? preferences.preferredDays
-        : DAY_OPTIONS;
-    }
-
-    const days = DAY_OPTIONS.filter(day =>
-      generatedSchedule.blocksByDay[day]?.length,
-    );
-    return days.length ? days : preferences.preferredDays;
-  }, [generatedSchedule, preferences.preferredDays]);
-
-  const exportScheduleAsCsv = () => {
-    if (!generatedSchedule) return;
-
-    const header = [
-      "Day",
-      "Course",
-      "Start",
-      "End",
-      "Instructor",
-      "Location",
-      "Credits",
-      "Notes",
-    ];
-
-    const rows = Object.entries(generatedSchedule.blocksByDay).flatMap(
-      ([day, blocks]) =>
-        blocks.map(block => [
-          day,
-          block.title || block.code,
-          block.startTime,
-          block.endTime,
-          block.instructor,
-          block.location,
-          block.credits,
-          block.notes ?? "",
-        ]),
-    );
-
-    const csv = [header, ...rows]
-      .map(row => row.map(cell => `"${String(cell ?? "").replace(/"/g, '""')}"`).join(","))
-      .join("\n");
-
-    const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement("a");
-    link.href = url;
-    link.download = "kairos-schedule.csv";
-    link.click();
-    URL.revokeObjectURL(url);
-  };
-
-  const exportScheduleAsIcs = () => {
-    if (!generatedSchedule) return;
-
-    const events = Object.entries(generatedSchedule.blocksByDay)
-      .flatMap(([day, blocks]) =>
-        blocks.map(block => {
-          const dayIndex = DAY_OPTIONS.indexOf(day);
-          if (dayIndex === -1) return "";
-
-          const now = new Date();
-          const currentWeekDay = now.getDay();
-          const offset = ((dayIndex + 1) % 7) - currentWeekDay;
-          const eventDate = new Date(now);
-          eventDate.setDate(now.getDate() + offset);
-
-          const [startHour, startMinute] = block.startTime.split(":").map(Number);
-          const [endHour, endMinute] = block.endTime.split(":").map(Number);
-
-          const startDate = new Date(eventDate);
-          startDate.setHours(startHour, startMinute, 0, 0);
-
-          const endDate = new Date(eventDate);
-          endDate.setHours(endHour, endMinute, 0, 0);
-
-          const formatIcsDate = (date: Date) =>
-            `${date.getUTCFullYear()}${(date.getUTCMonth() + 1)
-              .toString()
-              .padStart(2, "0")}${date
-              .getUTCDate()
-              .toString()
-              .padStart(2, "0")}T${date
-              .getUTCHours()
-              .toString()
-              .padStart(2, "0")}${date
-              .getUTCMinutes()
-              .toString()
-              .padStart(2, "0")}00Z`;
-
-          return [
-            "BEGIN:VEVENT",
-            `UID:${block.id}@kairos`,
-            `SUMMARY:${block.title || block.code}`,
-            `DESCRIPTION:${block.notes ?? "Generated with Kairos"}`,
-            `LOCATION:${block.location}`,
-            `DTSTART:${formatIcsDate(startDate)}`,
-            `DTEND:${formatIcsDate(endDate)}`,
-            "END:VEVENT",
-          ].join("\n");
-        }),
+  const totalCredits = validCourses.reduce(
+    (sum, course) => sum + (Number(course.credits) || 0),
+    0,
+  );
+  const totalMeetings = Object.values(blocksByDay).reduce(
+    (sum, blocks) => sum + blocks.length,
+    0,
+  );
+  const averageDailyHours = Object.keys(dayMinutes).length
+    ? Number(
+        (
+          Object.values(dayMinutes).reduce((minutes, value) => minutes + value, 0) /
+          60 /
+          Object.keys(dayMinutes).length
+        ).toFixed(2),
       )
-      .filter(Boolean)
-      .join("\n");
+    : 0;
 
-    const ics = ["BEGIN:VCALENDAR", "VERSION:2.0", events, "END:VCALENDAR"].join(
-      "\n",
-    );
+  return {
+    blocksByDay,
+    conflicts: dedupedConflicts,
+    summary: {
+      totalCredits,
+      totalMeetings,
+      averageDailyHours,
+    },
+  };
+};
 
-    const blob = new Blob([ics], { type: "text/calendar;charset=utf-8;" });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement("a");
-    link.href = url;
-    link.download = "kairos-schedule.ics";
-    link.click();
-    URL.revokeObjectURL(url);
+const computeScheduleBounds = (schedule: GeneratedSchedule | null) => {
+  const defaultBounds = {
+    start: timeStringToMinutes(DEFAULT_PREFERENCES.earliestStart),
+    end: timeStringToMinutes(DEFAULT_PREFERENCES.latestEnd),
   };
 
-  const scheduleDuration = Math.max(
-    60,
-    scheduleBounds.end - scheduleBounds.start,
+  if (!schedule) return defaultBounds;
+
+  const blocks = Object.values(schedule.blocksByDay).flat();
+  if (!blocks.length) return defaultBounds;
+
+  const earliest = Math.min(
+    ...blocks.map(block => timeStringToMinutes(block.startTime)),
+  );
+  const latest = Math.max(
+    ...blocks.map(block => timeStringToMinutes(block.endTime)),
   );
 
+  const padding = 30;
+
+  return {
+    start: Math.max(0, Math.min(defaultBounds.start, earliest) - padding),
+    end: Math.min(24 * 60, Math.max(defaultBounds.end, latest) + padding),
+  };
+};
+
+const computeAvailableDays = (schedule: GeneratedSchedule | null) => {
+  if (!schedule) return Array.from(DAY_OPTIONS);
+
+  const days = DAY_OPTIONS.filter(day => schedule.blocksByDay[day]?.length);
+  return days.length ? days : Array.from(DAY_OPTIONS);
+};
+
+const computeScheduleDuration = (bounds: { start: number; end: number }) =>
+  Math.max(60, bounds.end - bounds.start);
+
+const extractScheduleProposal = (
+  content: string,
+): AiScheduleProposal | null => {
+  const match = content.match(/```SCHEDULE_JSON\s*([\s\S]*?)```/i);
+  if (!match) return null;
+
+  try {
+    const payload = JSON.parse(match[1].trim());
+    const rawCourses = Array.isArray(payload?.courses) ? payload.courses : [];
+
+    const courses = sanitizeCourses(
+      rawCourses.map((course: Record<string, unknown>, index: number) => ({
+        id:
+          (typeof course.id === "string" && course.id) ||
+          (typeof course.classNumber === "string" && course.classNumber) ||
+          `${course.code ?? "course"}-${index}`,
+        code: String(course.code ?? course.courseCode ?? ""),
+        title: String(course.title ?? course.name ?? ""),
+        classNumber:
+          typeof course.classNumber === "string"
+            ? course.classNumber
+            : typeof course.section === "string"
+              ? course.section
+              : undefined,
+        days: Array.isArray(course.days)
+          ? course.days
+              .map(value => (typeof value === "string" ? value : ""))
+              .filter(Boolean)
+          : parseDayString(String(course.days ?? "")),
+        startTime: normalizeTimeString(
+          typeof course.startTime === "string"
+            ? course.startTime
+            : typeof course.start === "string"
+              ? course.start
+              : "",
+        ),
+        endTime: normalizeTimeString(
+          typeof course.endTime === "string"
+            ? course.endTime
+            : typeof course.end === "string"
+              ? course.end
+              : "",
+        ),
+        location: String(course.location ?? ""),
+        instructor: String(course.instructor ?? ""),
+        credits: Number(course.credits ?? 0) || 0,
+        notes:
+          typeof course.notes === "string"
+            ? course.notes
+            : typeof course.description === "string"
+              ? course.description
+              : undefined,
+      })),
+    );
+
+    const notes =
+      typeof payload?.notes === "string"
+        ? payload.notes
+        : typeof payload?.summary === "string"
+          ? payload.summary
+          : undefined;
+
+    if (!courses.length) {
+      return null;
+    }
+
+    return { courses, notes };
+  } catch (error) {
+    console.warn("Failed to parse SCHEDULE_JSON payload", error);
+    return null;
+  }
+};
+const ChatBubble = ({ message }: { message: AiChatMessage }) => {
+  const isUser = message.role === "user";
+
+  return (
+    <div className={cn("flex", isUser ? "justify-end" : "justify-start")}>
+      <div
+        className={cn(
+          "max-w-xl rounded-2xl px-4 py-3 text-sm shadow-lg",
+          isUser
+            ? "bg-primary text-primary-foreground"
+            : "bg-background/80 border border-white/10 backdrop-blur",
+        )}
+      >
+        {isUser ? (
+          <p className="whitespace-pre-wrap leading-relaxed">{message.content}</p>
+        ) : (
+          <MarkdownRenderer content={message.content} className="prose-p:leading-relaxed" />
+        )}
+      </div>
+    </div>
+  );
+};
+
+const StepBadge = ({
+  label,
+  active,
+  icon: Icon,
+}: {
+  label: string;
+  active: boolean;
+  icon: ComponentType<{ className?: string }>;
+}) => (
+  <div
+    className={cn(
+      "flex items-center gap-3 rounded-full border px-4 py-2 text-xs font-medium uppercase tracking-wide",
+      active
+        ? "border-primary/60 bg-primary/10 text-primary"
+        : "border-white/10 bg-background/40 text-muted-foreground",
+    )}
+  >
+    <Icon className="h-3.5 w-3.5" />
+    <span>{label}</span>
+  </div>
+);
+
+const ScheduleGrid = ({
+  schedule,
+  bounds,
+  duration,
+}: {
+  schedule: GeneratedSchedule;
+  bounds: { start: number; end: number };
+  duration: number;
+}) => {
+  const availableDays = computeAvailableDays(schedule);
+
+  return (
+    <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+      {availableDays.map(day => {
+        const blocks = schedule.blocksByDay[day] ?? [];
+
+        return (
+          <Card key={day} className="bg-background/70 border border-primary/10">
+            <CardHeader className="pb-4 text-left">
+              <CardTitle className="flex items-center gap-2 text-lg">
+                <Calendar className="h-4 w-4 text-primary" /> {day}
+              </CardTitle>
+              <CardDescription>
+                {blocks.length
+                  ? `${blocks.length} meeting${blocks.length === 1 ? "" : "s"}`
+                  : "No classes scheduled"}
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="relative">
+              <div className="relative h-[26rem] overflow-hidden">
+                <div className="absolute inset-0 border-l border-white/10">
+                  {Array.from({ length: Math.floor(duration / 60) + 2 }).map((_, index) => {
+                    const minuteMark = bounds.start + index * 60;
+                    if (minuteMark > bounds.end) return null;
+                    const top = ((minuteMark - bounds.start) / duration) * 100;
+                    return (
+                      <div
+                        key={`${day}-mark-${index}`}
+                        className="absolute left-0 right-0 border-t border-white/10 text-[10px] text-muted-foreground"
+                        style={{ top: `${top}%` }}
+                      >
+                        <span className="-ml-2 bg-background/80 px-1 py-0.5 rounded">
+                          {formatMinutesToTime(minuteMark)}
+                        </span>
+                      </div>
+                    );
+                  })}
+                </div>
+
+                {blocks.map(block => {
+                  const start = timeStringToMinutes(block.startTime);
+                  const end = timeStringToMinutes(block.endTime);
+                  const top = ((start - bounds.start) / duration) * 100;
+                  const height = Math.max(((end - start) / duration) * 100, 8);
+
+                  return (
+                    <div
+                      key={`${block.id}-${day}`}
+                      className={cn(
+                        "absolute left-8 right-4 rounded-xl border bg-primary/20 backdrop-blur px-3 py-3 text-left shadow-lg",
+                        block.conflict
+                          ? "border-destructive/60 bg-destructive/20"
+                          : "border-primary/40",
+                      )}
+                      style={{ top: `${top}%`, height: `${height}%` }}
+                    >
+                      <div className="flex items-center justify-between gap-2">
+                        <p className="font-semibold leading-tight">
+                          {block.title || block.code}
+                        </p>
+                        {block.classNumber && (
+                          <Badge variant="outline" className="text-[10px] uppercase tracking-wide">
+                            #{block.classNumber}
+                          </Badge>
+                        )}
+                      </div>
+                      <p className="text-xs text-muted-foreground">
+                        {block.startTime} - {block.endTime}
+                      </p>
+                      {block.instructor && (
+                        <p className="mt-1 text-xs text-muted-foreground">{block.instructor}</p>
+                      )}
+                      {block.location && (
+                        <p className="text-xs text-muted-foreground">{block.location}</p>
+                      )}
+                      <div className="mt-2 flex flex-wrap gap-1">
+                        <Badge variant="outline">{block.credits} cr</Badge>
+                        {block.conflict && <Badge variant="destructive">Conflict</Badge>}
+                      </div>
+                      {block.notes && (
+                        <p className="mt-2 text-[11px] text-muted-foreground leading-snug">
+                          {block.notes}
+                        </p>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            </CardContent>
+          </Card>
+        );
+      })}
+    </div>
+  );
+};
+const Scheduler = () => {
+  const navigate = useNavigate();
+  const { toast } = useToast();
+  const { user, loading: authLoading } = useAuth();
+  const isAdmin = useAdminStatus(user);
+
+  const [step, setStep] = useState<Step>("intro");
+  const [uploadedFileName, setUploadedFileName] = useState<string | null>(null);
+  const [courseCatalog, setCourseCatalog] = useState<CourseInput[]>([]);
+  const [isParsingFile, setIsParsingFile] = useState(false);
+
+  const [displayMessages, setDisplayMessages] = useState<AiChatMessage[]>([]);
+  const [geminiMessages, setGeminiMessages] = useState<GeminiMessage[]>([]);
+  const [userInput, setUserInput] = useState("");
+  const [isSending, setIsSending] = useState(false);
+  const [aiError, setAiError] = useState<string | null>(null);
+
+  const [candidateProposal, setCandidateProposal] = useState<AiScheduleProposal | null>(null);
+  const [acceptedSchedule, setAcceptedSchedule] = useState<GeneratedSchedule | null>(null);
+  const [acceptedNotes, setAcceptedNotes] = useState<string>("");
+
+  const chatScrollRef = useRef<HTMLDivElement>(null);
+
+  const candidatePreview = useMemo(() => {
+    if (!candidateProposal?.courses.length) return null;
+    return buildScheduleFromCourses(candidateProposal.courses, DEFAULT_PREFERENCES);
+  }, [candidateProposal]);
+
+  const candidateBounds = useMemo(
+    () => computeScheduleBounds(candidatePreview),
+    [candidatePreview],
+  );
+  const candidateDuration = useMemo(
+    () => computeScheduleDuration(candidateBounds),
+    [candidateBounds],
+  );
+
+  const acceptedBounds = useMemo(
+    () => computeScheduleBounds(acceptedSchedule),
+    [acceptedSchedule],
+  );
+  const acceptedDuration = useMemo(
+    () => computeScheduleDuration(acceptedBounds),
+    [acceptedBounds],
+  );
+
+  useEffect(() => {
+    if (!chatScrollRef.current) return;
+    chatScrollRef.current.scrollTop = chatScrollRef.current.scrollHeight;
+  }, [displayMessages, isSending]);
+
+  useEffect(() => {
+    if (step !== "chat") return;
+    if (!courseCatalog.length) return;
+    if (geminiMessages.length) return;
+
+    const baseMessages: GeminiMessage[] = [
+      { role: "system", content: SYSTEM_PROMPT },
+      {
+        role: "user",
+        content: `Here is the course catalog JSON: ${JSON.stringify(
+          courseCatalog,
+        )}. Greet the student and ask what they would like to take.`,
+      },
+    ];
+
+    setGeminiMessages(baseMessages);
+    setDisplayMessages([]);
+    setCandidateProposal(null);
+    setAiError(null);
+  }, [step, courseCatalog, geminiMessages.length]);
+
+  useEffect(() => {
+    if (step !== "chat") return;
+    if (!geminiMessages.length) return;
+
+    const last = geminiMessages[geminiMessages.length - 1];
+    if (last.role !== "user") return;
+
+    let cancelled = false;
+
+    const send = async () => {
+      setIsSending(true);
+      try {
+        const reply = await GeminiClient.chat(geminiMessages);
+        if (cancelled) return;
+
+        setGeminiMessages(prev => [...prev, { role: "model", content: reply }]);
+        setDisplayMessages(prev => [...prev, { role: "assistant", content: reply }]);
+
+        const proposal = extractScheduleProposal(reply);
+        if (proposal?.courses.length) {
+          setCandidateProposal(proposal);
+        }
+        setAiError(null);
+      } catch (error) {
+        if (cancelled) return;
+        const message =
+          error instanceof Error
+            ? error.message
+            : "We couldn't reach the Gemini service. Please try again.";
+        setAiError(message);
+        toast({
+          title: "AI assistant unavailable",
+          description: message,
+          variant: "destructive",
+        });
+      } finally {
+        if (!cancelled) {
+          setIsSending(false);
+        }
+      }
+    };
+
+    send();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [geminiMessages, step, toast]);
+
+  const handleStart = () => setStep("upload");
+
+  const handleReset = () => {
+    setStep("intro");
+    setUploadedFileName(null);
+    setCourseCatalog([]);
+    setDisplayMessages([]);
+    setGeminiMessages([]);
+    setCandidateProposal(null);
+    setAcceptedSchedule(null);
+    setAcceptedNotes("");
+    setUserInput("");
+    setAiError(null);
+  };
+
+  const parseFile = useCallback(
+    async (file: File) => {
+      if (file.name.endsWith(".json")) {
+        const text = await file.text();
+        return parseJsonCourses(text);
+      }
+
+      if (file.name.endsWith(".csv")) {
+        const text = await file.text();
+        return parseCsvCourses(text);
+      }
+
+      if (file.name.endsWith(".xlsx") || file.name.endsWith(".xls")) {
+        return parseSpreadsheetCourses(file);
+      }
+
+      if (file.type === "text/csv") {
+        const text = await file.text();
+        return parseCsvCourses(text);
+      }
+
+      if (file.type === "application/json") {
+        const text = await file.text();
+        return parseJsonCourses(text);
+      }
+
+      throw new Error("Unsupported file type. Upload CSV, Excel, or JSON.");
+    },
+    [],
+  );
+
+  const handleFileUpload = useCallback(
+    async (event: React.ChangeEvent<HTMLInputElement>) => {
+      const file = event.target.files?.[0];
+      event.target.value = "";
+      if (!file) return;
+
+      setIsParsingFile(true);
+      try {
+        const parsed = sanitizeCourses(await parseFile(file));
+        if (!parsed.length) {
+          throw new Error("No courses detected. Check your template headers.");
+        }
+
+        setCourseCatalog(parsed);
+        setUploadedFileName(file.name);
+        setStep("chat");
+        toast({
+          title: "Course list ready",
+          description: `${parsed.length} course${parsed.length === 1 ? "" : "s"} loaded for planning.`,
+        });
+      } catch (error) {
+        const message =
+          error instanceof Error
+            ? error.message
+            : "We couldn't read that file. Please try again.";
+        toast({
+          title: "Upload failed",
+          description: message,
+          variant: "destructive",
+        });
+      } finally {
+        setIsParsingFile(false);
+      }
+    },
+    [parseFile, toast],
+  );
+
+  const handleSendMessage = useCallback(() => {
+    if (!userInput.trim()) return;
+    const message = userInput.trim();
+    setDisplayMessages(prev => [...prev, { role: "user", content: message }]);
+    setGeminiMessages(prev => [...prev, { role: "user", content: message }]);
+    setUserInput("");
+  }, [userInput]);
+
+  const handleAcceptSchedule = () => {
+    if (!candidateProposal?.courses.length) return;
+    const schedule = buildScheduleFromCourses(
+      candidateProposal.courses,
+      DEFAULT_PREFERENCES,
+    );
+    setAcceptedSchedule(schedule);
+    setAcceptedNotes(candidateProposal.notes ?? "");
+    toast({
+      title: "Schedule added",
+      description: "Your AI generated plan is now visible below.",
+    });
+  };
+
+  const handleKeyDown = (event: React.KeyboardEvent<HTMLTextAreaElement>) => {
+    if (event.key === "Enter" && !event.shiftKey) {
+      event.preventDefault();
+      handleSendMessage();
+    }
+  };
+
+  const summaryCourses = courseCatalog.slice(0, 6);
   return (
     <div className="min-h-screen relative overflow-hidden">
       <div className="fixed inset-0 -z-10">
-        <div className="gradient-orb gradient-orb-1"></div>
-        <div className="gradient-orb gradient-orb-2"></div>
-        <div className="gradient-orb gradient-orb-3"></div>
+        <div className="gradient-orb gradient-orb-1" />
+        <div className="gradient-orb gradient-orb-2" />
+        <div className="gradient-orb gradient-orb-3" />
       </div>
 
       <Navigation
@@ -894,468 +1000,292 @@ const Scheduler = () => {
           Back to Home
         </Button>
 
-        <div className="max-w-5xl mx-auto text-center space-y-12 animate-fade-in">
+        <div className="max-w-5xl mx-auto text-center space-y-10 animate-fade-in">
           <div className="inline-block">
             <h1 className="text-6xl md:text-7xl font-bold bg-gradient-to-r from-primary via-accent to-primary bg-clip-text text-transparent animate-shimmer mb-6 text-glow">
               AI Course Scheduler
             </h1>
-            <div className="h-1 w-full bg-gradient-to-r from-transparent via-primary to-transparent opacity-50 animate-pulse"></div>
+            <div className="h-1 w-full bg-gradient-to-r from-transparent via-primary to-transparent opacity-50 animate-pulse" />
           </div>
 
           <p className="text-xl md:text-2xl text-muted-foreground max-w-3xl mx-auto leading-relaxed">
-            Upload your course list, set preferences, and let Kairos craft an optimized schedule with instant conflict detection and shareable exports.
+            Collaborate with Gemini to design a personalised, conflict-aware semester plan. Upload your catalog, answer a few conversational prompts, and approve the schedule when it feels just right.
           </p>
         </div>
 
-        <div className="mt-16 grid gap-8 lg:grid-cols-[1.6fr_1fr]">
-          <Card className="bg-background/60 backdrop-blur-xl border border-primary/20 shadow-2xl">
-            <CardHeader className="flex flex-row items-center justify-between space-y-0">
-              <div className="text-left">
-                <CardTitle className="text-2xl flex items-center gap-2">
-                  <Upload className="h-5 w-5 text-primary" /> Course Data
-                </CardTitle>
-                <CardDescription>
-                  Import a CSV or JSON export or build your schedule manually below.
-                </CardDescription>
-              </div>
-              {uploadedFileName && (
-                <Badge variant="secondary" className="uppercase tracking-wide">
-                  {uploadedFileName}
-                </Badge>
-              )}
-            </CardHeader>
-            <CardContent className="space-y-6">
-              <div className="rounded-xl border border-dashed border-primary/40 bg-primary/5 p-6">
-                <Label className="text-sm font-medium">Upload course template</Label>
-                <Input
-                  type="file"
-                  accept=".csv,.json"
-                  className="mt-3 bg-background/70"
-                  onChange={handleFileUpload}
-                />
-                <p className="mt-2 text-xs text-muted-foreground">
-                  CSV columns supported: code, title, days, start_time, end_time, instructor, location, credits. JSON should be an array of course objects with similar keys.
-                </p>
-              </div>
+        <div className="mt-12 flex flex-wrap items-center gap-3 justify-center">
+          <StepBadge label="Overview" active={step === "intro"} icon={Sparkles} />
+          <StepBadge label="Upload" active={step === "upload"} icon={FileSpreadsheet} />
+          <StepBadge label="Plan" active={step === "chat"} icon={MessagesSquare} />
+        </div>
 
-              <div className="space-y-4">
-                {courses.map((course, index) => (
-                  <Card
-                    key={course.id}
-                    className="bg-background/80 border border-primary/20 shadow-inner"
-                  >
-                    <CardHeader className="flex flex-col md:flex-row md:items-center md:justify-between space-y-2 md:space-y-0 pb-0">
-                      <div className="text-left">
-                        <CardTitle className="text-lg">
-                          {course.title || course.code || `Course ${index + 1}`}
-                        </CardTitle>
-                        <CardDescription>
-                          Meeting preferences for this course
-                        </CardDescription>
-                      </div>
-                      <div className="flex items-center gap-3">
-                        <Badge variant="outline">{course.credits} credits</Badge>
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          className="text-destructive"
-                          onClick={() => removeCourse(course.id)}
-                          disabled={courses.length === 1}
-                        >
-                          Remove
-                        </Button>
-                      </div>
-                    </CardHeader>
-                    <CardContent className="pt-4 space-y-4">
-                      <div className="grid md:grid-cols-3 gap-4">
-                        <div className="text-left space-y-2">
-                          <Label>Course title</Label>
-                          <Input
-                            value={course.title}
-                            placeholder="e.g. Data Structures"
-                            onChange={event =>
-                              handleCourseChange(course.id, "title", event.target.value)
-                            }
-                          />
-                        </div>
-                        <div className="text-left space-y-2">
-                          <Label>Course code</Label>
-                          <Input
-                            value={course.code}
-                            placeholder="e.g. CS 201"
-                            onChange={event =>
-                              handleCourseChange(course.id, "code", event.target.value)
-                            }
-                          />
-                        </div>
-                        <div className="text-left space-y-2">
-                          <Label>Instructor</Label>
-                          <Input
-                            value={course.instructor}
-                            placeholder="Optional"
-                            onChange={event =>
-                              handleCourseChange(
-                                course.id,
-                                "instructor",
-                                event.target.value,
-                              )
-                            }
-                          />
-                        </div>
-                      </div>
-
-                      <div className="grid md:grid-cols-4 gap-4 items-end">
-                        <div className="text-left space-y-2 md:col-span-2">
-                          <Label>Days</Label>
-                          <div className="flex flex-wrap gap-2">
-                            {DAY_OPTIONS.map(day => (
-                              <div key={`${course.id}-${day}`} className="flex items-center gap-2">
-                                <Checkbox
-                                  id={`${course.id}-${day}`}
-                                  checked={course.days.includes(day)}
-                                  onCheckedChange={checked =>
-                                    handleCourseDayToggle(
-                                      course.id,
-                                      day,
-                                      Boolean(checked),
-                                    )
-                                  }
-                                />
-                                <Label htmlFor={`${course.id}-${day}`} className="text-xs">
-                                  {day.slice(0, 3)}
-                                </Label>
-                              </div>
-                            ))}
-                          </div>
-                        </div>
-                        <div className="text-left space-y-2">
-                          <Label>Starts</Label>
-                          <Input
-                            type="time"
-                            value={course.startTime}
-                            onChange={event =>
-                              handleCourseChange(
-                                course.id,
-                                "startTime",
-                                event.target.value,
-                              )
-                            }
-                          />
-                        </div>
-                        <div className="text-left space-y-2">
-                          <Label>Ends</Label>
-                          <Input
-                            type="time"
-                            value={course.endTime}
-                            onChange={event =>
-                              handleCourseChange(
-                                course.id,
-                                "endTime",
-                                event.target.value,
-                              )
-                            }
-                          />
-                        </div>
-                      </div>
-
-                      <div className="grid md:grid-cols-3 gap-4">
-                        <div className="text-left space-y-2">
-                          <Label>Location</Label>
-                          <Input
-                            value={course.location}
-                            placeholder="Optional"
-                            onChange={event =>
-                              handleCourseChange(
-                                course.id,
-                                "location",
-                                event.target.value,
-                              )
-                            }
-                          />
-                        </div>
-                        <div className="text-left space-y-2">
-                          <Label>Credits</Label>
-                          <Input
-                            type="number"
-                            min={0}
-                            value={course.credits}
-                            onChange={event =>
-                              handleCourseChange(
-                                course.id,
-                                "credits",
-                                Number(event.target.value),
-                              )
-                            }
-                          />
-                        </div>
-                        <div className="text-left space-y-2 md:col-span-1">
-                          <Label>Notes</Label>
-                          <Input
-                            value={course.notes ?? ""}
-                            placeholder="Optional"
-                            onChange={event =>
-                              handleCourseChange(
-                                course.id,
-                                "notes",
-                                event.target.value,
-                              )
-                            }
-                          />
-                        </div>
-                      </div>
-                    </CardContent>
-                  </Card>
-                ))}
-              </div>
-
-              <Button
-                type="button"
-                variant="outline"
-                className="w-full border-dashed"
-                onClick={addCourse}
-              >
-                <BookOpen className="mr-2 h-4 w-4" /> Add another course
-              </Button>
-            </CardContent>
-          </Card>
-
-          <Card className="bg-background/60 backdrop-blur-xl border border-primary/20 shadow-2xl">
-            <CardHeader className="text-left">
-              <CardTitle className="text-2xl flex items-center gap-2">
-                <Settings className="h-5 w-5 text-primary" /> Scheduling Preferences
+        {step === "intro" && (
+          <Card className="mt-12 bg-background/70 backdrop-blur-xl border border-primary/20 shadow-2xl max-w-4xl mx-auto">
+            <CardHeader className="space-y-4 text-left">
+              <CardTitle className="text-3xl flex items-center gap-3">
+                <Sparkles className="h-6 w-6 text-primary" />
+                Plan your semester in minutes
               </CardTitle>
-              <CardDescription>
-                Tell the AI how you like to learn and we'll tailor your schedule around it.
+              <CardDescription className="text-base leading-relaxed">
+                Click below to start a guided, step-by-step experience. Kairos will review your course catalog, ask about your goals, and produce a weekly schedule you can tweak until it's perfect.
               </CardDescription>
             </CardHeader>
-            <CardContent className="space-y-6">
-              <div className="space-y-2 text-left">
-                <Label>Preferred meeting days</Label>
-                <div className="flex flex-wrap gap-2">
-                  {DAY_OPTIONS.map(day => (
-                    <Button
-                      key={day}
-                      type="button"
-                      variant={preferences.preferredDays.includes(day) ? "default" : "outline"}
-                      size="sm"
-                      onClick={() => togglePreferredDay(day)}
-                    >
-                      {day.slice(0, 3)}
-                    </Button>
-                  ))}
-                </div>
-              </div>
-
-              <div className="grid grid-cols-2 gap-4 text-left">
-                <div className="space-y-2">
-                  <Label>Earliest start</Label>
-                  <Input
-                    type="time"
-                    value={preferences.earliestStart}
-                    onChange={event =>
-                      setPreferences(prev => ({
-                        ...prev,
-                        earliestStart: event.target.value,
-                      }))
-                    }
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label>Latest finish</Label>
-                  <Input
-                    type="time"
-                    value={preferences.latestEnd}
-                    onChange={event =>
-                      setPreferences(prev => ({
-                        ...prev,
-                        latestEnd: event.target.value,
-                      }))
-                    }
-                  />
-                </div>
-              </div>
-
-              <div className="space-y-2 text-left">
-                <Label className="flex items-center justify-between text-sm font-medium">
-                  Minimum break between classes
-                  <span className="text-muted-foreground text-xs">
-                    {preferences.breakMinutes} minutes
-                  </span>
-                </Label>
-                <Slider
-                  min={0}
-                  max={120}
-                  step={5}
-                  value={[preferences.breakMinutes]}
-                  onValueChange={([value]) =>
-                    setPreferences(prev => ({
-                      ...prev,
-                      breakMinutes: value,
-                    }))
-                  }
-                />
-              </div>
-
-              <div className="space-y-4">
-                <div className="flex items-center justify-between rounded-lg border border-white/10 bg-background/50 px-4 py-3">
-                  <div className="text-left">
-                    <p className="font-medium">Allow evening classes</p>
-                    <p className="text-xs text-muted-foreground">
-                      Toggle off to flag anything outside your preferred time window.
-                    </p>
-                  </div>
-                  <Switch
-                    checked={preferences.allowEvening}
-                    onCheckedChange={checked =>
-                      setPreferences(prev => ({
-                        ...prev,
-                        allowEvening: Boolean(checked),
-                      }))
-                    }
-                  />
-                </div>
-                <div className="flex items-center justify-between rounded-lg border border-white/10 bg-background/50 px-4 py-3">
-                  <div className="text-left">
-                    <p className="font-medium">Prefer online sections</p>
-                    <p className="text-xs text-muted-foreground">
-                      We'll prioritize classes with remote or hybrid delivery when available.
-                    </p>
-                  </div>
-                  <Switch
-                    checked={preferences.preferOnline}
-                    onCheckedChange={checked =>
-                      setPreferences(prev => ({
-                        ...prev,
-                        preferOnline: Boolean(checked),
-                      }))
-                    }
-                  />
-                </div>
-              </div>
-
-              <div className="space-y-2 text-left">
-                <Label>Schedule style</Label>
-                <Select
-                  value={preferences.scheduleDensity}
-                  onValueChange={value =>
-                    setPreferences(prev => ({
-                      ...prev,
-                      scheduleDensity: value as SchedulePreferences["scheduleDensity"],
-                    }))
-                  }
-                >
-                  <SelectTrigger>
-                    <SelectValue placeholder="Select a density" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="compact">Compact — stack classes together</SelectItem>
-                    <SelectItem value="balanced">Balanced — even spread</SelectItem>
-                    <SelectItem value="spacious">Spacious — plenty of gaps</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-
-              <div className="space-y-2 text-left">
-                <Label>Anything else we should know?</Label>
-                <Textarea
-                  value={preferences.additionalNotes}
-                  placeholder="e.g. Keep Tuesdays light for work, avoid back-to-back labs"
-                  onChange={event =>
-                    setPreferences(prev => ({
-                      ...prev,
-                      additionalNotes: event.target.value,
-                    }))
-                  }
-                />
-              </div>
-
-              {persistedToSupabase !== null && (
-                <div className="flex items-center gap-2 rounded-lg border border-white/10 bg-background/50 px-4 py-3 text-left">
-                  <Sparkles className={cn("h-4 w-4", persistedToSupabase ? "text-primary" : "text-muted-foreground")} />
-                  <p className="text-xs text-muted-foreground">
-                    {persistedToSupabase
-                      ? "Your latest request is synced with Supabase."
-                      : "We saved this request locally. Sign in to sync with Supabase."}
-                  </p>
-                </div>
+            <CardFooter className="flex flex-wrap gap-4">
+              <Button
+                size="lg"
+                className="bg-gradient-to-r from-primary to-accent text-primary-foreground shadow-lg"
+                onClick={handleStart}
+              >
+                <Sparkles className="mr-2 h-5 w-5" />
+                Schedule this semester's courses
+              </Button>
+              {authLoading ? null : user ? (
+                <Badge variant="secondary" className="uppercase tracking-wide">
+                  Signed in as {user.email ?? "student"}
+                </Badge>
+              ) : (
+                <CardDescription className="text-sm">
+                  Optional: sign in from the header to sync plans later.
+                </CardDescription>
               )}
-            </CardContent>
-          </Card>
-        </div>
-
-        <div className="mt-10 flex flex-wrap items-center gap-4">
-          <Button
-            size="lg"
-            className="bg-gradient-to-r from-primary to-accent text-primary-foreground shadow-lg"
-            onClick={handleGenerateSchedule}
-            disabled={isGenerating}
-          >
-            {isGenerating ? (
-              <>
-                <Loader2 className="mr-2 h-5 w-5 animate-spin" /> Generating...
-              </>
-            ) : (
-              <>
-                <Sparkles className="mr-2 h-5 w-5" /> Generate schedule
-              </>
-            )}
-          </Button>
-          <Button
-            variant="outline"
-            onClick={addCourse}
-          >
-            <BookOpen className="mr-2 h-4 w-4" /> Add course row
-          </Button>
-          {generatedSchedule && (
-            <>
-              <Button variant="outline" onClick={exportScheduleAsIcs}>
-                <CalendarPlus className="mr-2 h-4 w-4" /> Export .ics
-              </Button>
-              <Button variant="outline" onClick={exportScheduleAsCsv}>
-                <Download className="mr-2 h-4 w-4" /> Export CSV
-              </Button>
-            </>
-          )}
-        </div>
-
-        {errorMessage && (
-          <Card className="mt-6 border-destructive/40 bg-destructive/10">
-            <CardHeader className="flex flex-row items-center gap-3">
-              <AlertTriangle className="h-5 w-5 text-destructive" />
-              <div className="text-left">
-                <CardTitle className="text-lg">We need a bit more info</CardTitle>
-                <CardDescription>{errorMessage}</CardDescription>
-              </div>
-            </CardHeader>
+            </CardFooter>
           </Card>
         )}
 
-        {generatedSchedule ? (
-          <div className="mt-12 space-y-8">
+        {step === "upload" && (
+          <div className="mt-12 grid gap-6 lg:grid-cols-[1.3fr_1fr]">
+            <Card className="bg-background/70 backdrop-blur-xl border border-primary/20 shadow-2xl">
+              <CardHeader className="text-left space-y-2">
+                <CardTitle className="flex items-center gap-2 text-2xl">
+                  <Upload className="h-5 w-5 text-primary" /> Upload your course list
+                </CardTitle>
+                <CardDescription>
+                  Accepts CSV, XLSX, or JSON exports. We'll parse the essentials like days, meeting times, instructors, and class numbers.
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-6">
+                <div className="rounded-xl border border-dashed border-primary/40 bg-primary/5 p-6">
+                  <Label className="text-sm font-medium">Select a file to begin</Label>
+                  <Input
+                    type="file"
+                    accept=".csv,.json,.xlsx,.xls"
+                    className="mt-3 bg-background/70"
+                    onChange={handleFileUpload}
+                    disabled={isParsingFile}
+                  />
+                  <p className="mt-2 text-xs text-muted-foreground">
+                    Column names recognised: code, title, class_number, days, start_time, end_time, instructor, location, credits, notes.
+                  </p>
+                </div>
+
+                <div className="space-y-3 text-left">
+                  <p className="text-sm font-semibold uppercase tracking-wide text-muted-foreground">
+                    Tips
+                  </p>
+                  <ul className="text-sm space-y-2 text-muted-foreground">
+                    <li>• Include every potential section so the AI can suggest the best fit.</li>
+                    <li>• Times can be in 24-hour or 12-hour format—we'll normalise them automatically.</li>
+                    <li>• You can always re-upload if you need to update the catalog.</li>
+                  </ul>
+                </div>
+              </CardContent>
+              <CardFooter>
+                <Button variant="outline" onClick={handleReset} disabled={isParsingFile}>
+                  <RefreshCw className="mr-2 h-4 w-4" /> Start over
+                </Button>
+              </CardFooter>
+            </Card>
+
+            <Card className="bg-background/60 border border-white/10">
+              <CardHeader className="space-y-1 text-left">
+                <CardTitle className="text-lg">What happens next?</CardTitle>
+                <CardDescription>
+                  Once the file is parsed, Kairos will greet you and ask what you want to take. Answer naturally and the AI will build a schedule you can approve.
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-4 text-left text-sm text-muted-foreground">
+                <p>We'll only read the file locally in your browser before sending the structured data to Gemini with your permission.</p>
+                <p>If you need a template, export your university's registration list as CSV or Excel.</p>
+              </CardContent>
+            </Card>
+          </div>
+        )}
+
+        {step === "chat" && (
+          <div className="mt-12 grid gap-8 xl:grid-cols-[1.4fr_1fr]">
+            <Card className="bg-background/70 backdrop-blur-xl border border-primary/20 shadow-2xl flex flex-col">
+              <CardHeader className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between text-left">
+                <div>
+                  <CardTitle className="text-2xl flex items-center gap-2">
+                    <MessagesSquare className="h-5 w-5 text-primary" /> Talk to Kairos
+                  </CardTitle>
+                  <CardDescription>
+                    Share your goals, time preferences, and anything else the AI should consider. When a plan is ready, it'll appear on the right.
+                  </CardDescription>
+                </div>
+                <div className="flex flex-wrap gap-2">
+                  {uploadedFileName && (
+                    <Badge variant="secondary" className="uppercase tracking-wide">
+                      {uploadedFileName}
+                    </Badge>
+                  )}
+                  <Button variant="outline" size="sm" onClick={handleReset}>
+                    <RefreshCw className="mr-2 h-4 w-4" /> Re-upload courses
+                  </Button>
+                </div>
+              </CardHeader>
+              <CardContent className="flex-1 flex flex-col gap-4">
+                {summaryCourses.length > 0 && (
+                  <div className="rounded-xl border border-white/10 bg-background/60 p-4 text-left">
+                    <p className="text-xs uppercase tracking-wide text-muted-foreground mb-2">
+                      Sample from your catalog
+                    </p>
+                    <div className="flex flex-wrap gap-2">
+                      {summaryCourses.map(course => (
+                        <Badge key={course.id} variant="outline" className="text-xs">
+                          {course.code || course.title} {course.classNumber ? `• ${course.classNumber}` : ""}
+                        </Badge>
+                      ))}
+                    </div>
+                  </div>
+                )}
+                <div
+                  ref={chatScrollRef}
+                  className="flex-1 rounded-xl border border-white/10 bg-background/60 p-4 space-y-4 overflow-y-auto max-h-[28rem]"
+                >
+                  {displayMessages.length === 0 && !isSending ? (
+                    <div className="flex h-full items-center justify-center text-sm text-muted-foreground">
+                      Kairos is reading your catalog and will start the conversation shortly.
+                    </div>
+                  ) : (
+                    displayMessages.map((message, index) => (
+                      <ChatBubble key={index} message={message} />
+                    ))
+                  )}
+                  {isSending && (
+                    <div className="flex justify-start">
+                      <div className="flex items-center gap-3 rounded-2xl border border-white/10 bg-background/70 px-4 py-2 text-sm text-muted-foreground">
+                        <Loader2 className="h-4 w-4 animate-spin" />
+                        Thinking...
+                      </div>
+                    </div>
+                  )}
+                </div>
+                {aiError && (
+                  <div className="flex items-center gap-2 text-sm text-destructive">
+                    <AlertTriangle className="h-4 w-4" /> {aiError}
+                  </div>
+                )}
+              </CardContent>
+              <CardFooter className="flex flex-col gap-3">
+                <Textarea
+                  value={userInput}
+                  onChange={event => setUserInput(event.target.value)}
+                  onKeyDown={handleKeyDown}
+                  placeholder="Tell Kairos which classes you need, your ideal days, breaks, or any constraints."
+                  className="min-h-[90px]"
+                  disabled={isSending}
+                />
+                <div className="flex items-center justify-between">
+                  <p className="text-xs text-muted-foreground">
+                    Press Enter to send, or Shift + Enter for a new line.
+                  </p>
+                  <Button onClick={handleSendMessage} disabled={isSending || !userInput.trim()}>
+                    {isSending ? (
+                      <>
+                        <Loader2 className="mr-2 h-4 w-4 animate-spin" /> Sending
+                      </>
+                    ) : (
+                      <>
+                        <Send className="mr-2 h-4 w-4" /> Send message
+                      </>
+                    )}
+                  </Button>
+                </div>
+              </CardFooter>
+            </Card>
+
+            <div className="space-y-6">
+              {candidatePreview ? (
+                <Card className="bg-background/70 border border-primary/20 shadow-2xl">
+                  <CardHeader className="text-left space-y-2">
+                    <CardTitle className="flex items-center gap-2 text-xl">
+                      <CheckCircle2 className="h-5 w-5 text-primary" /> Proposed schedule
+                    </CardTitle>
+                    <CardDescription>
+                      Review Kairos' latest suggestion. Accept it to pin the plan below, or continue the chat to request changes.
+                    </CardDescription>
+                  </CardHeader>
+                  <CardContent className="space-y-4">
+                    {candidateProposal?.notes && (
+                      <div className="rounded-lg border border-white/10 bg-background/60 p-4 text-sm text-left text-muted-foreground">
+                        {candidateProposal.notes}
+                      </div>
+                    )}
+                    {candidatePreview.conflicts.length > 0 && (
+                      <div className="rounded-lg border border-destructive/40 bg-destructive/10 p-3 text-left text-sm text-destructive">
+                        Gemini spotted {candidatePreview.conflicts.length} potential conflict{candidatePreview.conflicts.length === 1 ? "" : "s"}. Ask for adjustments or edit manually after accepting.
+                      </div>
+                    )}
+                    <ScheduleGrid
+                      schedule={candidatePreview}
+                      bounds={candidateBounds}
+                      duration={candidateDuration}
+                    />
+                  </CardContent>
+                  <CardFooter>
+                    <Button onClick={handleAcceptSchedule}>
+                      <CheckCircle2 className="mr-2 h-4 w-4" /> Accept this plan
+                    </Button>
+                  </CardFooter>
+                </Card>
+              ) : (
+                <Card className="bg-background/60 border border-dashed border-primary/30">
+                  <CardHeader className="text-left">
+                    <CardTitle className="text-lg">Waiting for a proposal</CardTitle>
+                    <CardDescription>
+                      Keep the conversation going. When Kairos has a complete plan, it will appear here for review.
+                    </CardDescription>
+                  </CardHeader>
+                </Card>
+              )}
+            </div>
+          </div>
+        )}
+
+        {acceptedSchedule && (
+          <div className="mt-16 space-y-8">
             <Card className="bg-background/70 backdrop-blur-xl border border-primary/20">
               <CardHeader className="text-left">
                 <CardTitle className="text-2xl flex items-center gap-2">
-                  <Calendar className="h-5 w-5 text-primary" /> Generated plan
+                  <Calendar className="h-5 w-5 text-primary" /> Your confirmed schedule
                 </CardTitle>
                 <CardDescription>
-                  {generatedSchedule.summary.totalCredits} total credits • {generatedSchedule.summary.totalMeetings} weekly meetings • {generatedSchedule.summary.averageDailyHours} average hours per day
+                  {acceptedSchedule.summary.totalCredits} credits • {acceptedSchedule.summary.totalMeetings} weekly meetings • {acceptedSchedule.summary.averageDailyHours} average hours per day
                 </CardDescription>
               </CardHeader>
+              {acceptedNotes && (
+                <CardContent>
+                  <div className="rounded-lg border border-white/10 bg-background/60 p-4 text-left text-sm text-muted-foreground">
+                    {acceptedNotes}
+                  </div>
+                </CardContent>
+              )}
             </Card>
 
-            {generatedSchedule.conflicts.length > 0 && (
+            {acceptedSchedule.conflicts.length > 0 && (
               <Card className="border-destructive/40 bg-destructive/10">
                 <CardHeader className="text-left">
                   <CardTitle className="flex items-center gap-2 text-destructive">
-                    <AlertTriangle className="h-5 w-5" /> Potential conflicts detected
+                    <AlertTriangle className="h-5 w-5" /> Potential conflicts to review
                   </CardTitle>
                   <CardDescription>
-                    Resolve these overlaps or preferences before finalizing your schedule.
+                    Resolve or confirm these overlaps before final registration.
                   </CardDescription>
                 </CardHeader>
                 <CardContent>
                   <ul className="space-y-4">
-                    {generatedSchedule.conflicts.map((conflict, index) => (
+                    {acceptedSchedule.conflicts.map((conflict, index) => (
                       <li key={`${conflict.day}-${index}`} className="flex items-start gap-3">
                         <AlertTriangle className="mt-1 h-4 w-4 text-destructive" />
                         <div className="text-left">
@@ -1378,138 +1308,13 @@ const Scheduler = () => {
               </Card>
             )}
 
-            <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
-              {availableDays.map(day => {
-                const blocks = generatedSchedule.blocksByDay[day] ?? [];
-
-                return (
-                  <Card key={day} className="bg-background/70 border border-primary/10">
-                    <CardHeader className="pb-4 text-left">
-                      <CardTitle className="flex items-center gap-2 text-lg">
-                        <Clock className="h-4 w-4 text-primary" /> {day}
-                      </CardTitle>
-                      <CardDescription>
-                        {blocks.length ? `${blocks.length} meeting${blocks.length === 1 ? "" : "s"}` : "No classes scheduled"}
-                      </CardDescription>
-                    </CardHeader>
-                    <CardContent className="relative">
-                      <div className="relative h-[28rem] overflow-hidden">
-                        <div className="absolute inset-0 border-l border-white/10">
-                          {Array.from({
-                            length: Math.floor(scheduleDuration / 60) + 2,
-                          }).map((_, index) => {
-                            const minuteMark = scheduleBounds.start + index * 60;
-                            if (minuteMark > scheduleBounds.end) return null;
-                            const top = ((minuteMark - scheduleBounds.start) / scheduleDuration) * 100;
-                            return (
-                              <div
-                                key={`${day}-mark-${index}`}
-                                className="absolute left-0 right-0 border-t border-white/10 text-[10px] text-muted-foreground"
-                                style={{ top: `${top}%` }}
-                              >
-                                <span className="-ml-2 bg-background/80 px-1 py-0.5 rounded">
-                                  {formatMinutesToTime(minuteMark)}
-                                </span>
-                              </div>
-                            );
-                          })}
-                        </div>
-
-                        {blocks.map(block => {
-                          const start = timeStringToMinutes(block.startTime);
-                          const end = timeStringToMinutes(block.endTime);
-                          const top = ((start - scheduleBounds.start) / scheduleDuration) * 100;
-                          const height = Math.max(
-                            ((end - start) / scheduleDuration) * 100,
-                            8,
-                          );
-
-                          return (
-                            <div
-                              key={`${block.id}-${day}`}
-                              className={cn(
-                                "absolute left-8 right-4 rounded-xl border bg-primary/20 backdrop-blur-md px-3 py-3 text-left shadow-lg",
-                                block.conflict
-                                  ? "border-destructive/60 bg-destructive/20"
-                                  : "border-primary/40",
-                              )}
-                              style={{ top: `${top}%`, height: `${height}%` }}
-                            >
-                              <p className="font-semibold leading-tight">
-                                {block.title || block.code}
-                              </p>
-                              <p className="text-xs text-muted-foreground">
-                                {block.startTime} - {block.endTime}
-                              </p>
-                              {block.instructor && (
-                                <p className="mt-1 text-xs text-muted-foreground">
-                                  {block.instructor}
-                                </p>
-                              )}
-                              {block.location && (
-                                <p className="text-xs text-muted-foreground">
-                                  {block.location}
-                                </p>
-                              )}
-                              <div className="mt-2 flex flex-wrap gap-1">
-                                <Badge variant="outline">{block.credits} cr</Badge>
-                                {block.conflict && (
-                                  <Badge variant="destructive">Conflict</Badge>
-                                )}
-                              </div>
-                            </div>
-                          );
-                        })}
-                      </div>
-                    </CardContent>
-                  </Card>
-                );
-              })}
-            </div>
+            <ScheduleGrid
+              schedule={acceptedSchedule}
+              bounds={acceptedBounds}
+              duration={acceptedDuration}
+            />
           </div>
-        ) : (
-          <Card className="mt-12 bg-background/70 backdrop-blur-xl border border-dashed border-primary/30">
-            <CardHeader className="text-left">
-              <CardTitle className="flex items-center gap-2 text-lg">
-                <Brain className="h-5 w-5 text-primary" /> How it works
-              </CardTitle>
-              <CardDescription>
-                Upload a course file or build manually, set preferences, then tap generate to preview a live schedule grid. We&apos;ll surface conflicts, highlight gaps, and let you export your plan instantly.
-              </CardDescription>
-            </CardHeader>
-          </Card>
         )}
-
-        <div className="grid md:grid-cols-3 gap-8 mt-16">
-          {["Smart Conflict Detection", "Preference Learning", "One-Click Export"].map((title, index) => {
-            const feature = [
-              {
-                icon: Brain,
-                desc: "AI automatically identifies and resolves scheduling conflicts in real-time",
-              },
-              {
-                icon: CheckCircle,
-                desc: "Adapts to your unique scheduling preferences and patterns over time",
-              },
-              {
-                icon: Calendar,
-                desc: "Seamlessly export your optimized schedule to any calendar app",
-              },
-            ][index];
-
-            const Icon = feature.icon;
-            return (
-              <div
-                key={title}
-                className="group p-8 rounded-2xl bg-background/40 backdrop-blur-xl border border-white/10 hover:border-primary/50 hover:bg-background/60 transition-all duration-300 hover:scale-105 hover:shadow-xl hover:shadow-primary/20"
-              >
-                <Icon className="w-12 h-12 mb-4 text-primary group-hover:scale-110 transition-transform" />
-                <h3 className="font-bold text-xl mb-3 text-glow">{title}</h3>
-                <p className="text-sm text-muted-foreground leading-relaxed">{feature.desc}</p>
-              </div>
-            );
-          })}
-        </div>
 
         <div id="waitlist" className="mt-16 max-w-md mx-auto">
           <WaitlistForm />

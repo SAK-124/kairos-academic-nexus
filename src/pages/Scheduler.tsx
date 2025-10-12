@@ -372,92 +372,167 @@ const splitCsvLine = (line: string) => {
   return cells.map(cell => cell.replace(/^"|"$/g, ""));
 };
 
-const parseCsvCourses = (text: string): CourseInput[] => {
+const buildSheetPreview = (name: string, rawRows: string[][]): SheetPreview | null => {
+  const cleanedRows = rawRows
+    .map(row => row.slice(0, MAX_SHEET_COLUMNS).map(cell => normalizeSheetCell(cell)))
+    .filter(row => row.some(cell => cell.length));
+
+  const limitedRows = cleanedRows.slice(0, MAX_SHEET_ROWS);
+  if (!limitedRows.length) return null;
+
+  const columnCount = limitedRows.reduce((max, row) => Math.max(max, row.length), 0);
+  const rows = limitedRows.map(row =>
+    Array.from({ length: columnCount }, (_, index) => row[index] ?? ""),
+  );
+
+  const columnSamples = Array.from({ length: columnCount })
+    .map((_, index) => ({
+      columnIndex: index,
+      samples: rows
+        .map(row => row[index])
+        .filter(value => Boolean(value?.length))
+        .slice(0, 5),
+    }))
+    .filter(sample => sample.samples.length);
+
+  return {
+    name,
+    rows,
+    columnSamples: columnSamples.length ? columnSamples : undefined,
+  };
+};
+
+const parseWithGemini = async (previews: SheetPreview[]): Promise<CourseInput[]> => {
+  if (!previews.length) return [];
+
+  try {
+    const aiCourses = await extractCoursesWithGemini(previews);
+    return sanitizeCourses(aiCourses);
+  } catch (error) {
+    console.error("Gemini schedule extraction failed", error);
+    throw new Error(
+      "We couldn't analyze that file with AI. Please try again with a different file or try again later.",
+    );
+  }
+};
+
+const parseCsvWithGemini = async (
+  fileName: string,
+  text: string,
+): Promise<CourseInput[]> => {
   const rows = text
     .split(/\r?\n/)
     .map(row => row.trim())
-    .filter(Boolean);
+    .filter(Boolean)
+    .map(line => splitCsvLine(line).map(cell => normalizeSheetCell(cell)));
 
-  if (rows.length <= 1) return [];
+  const preview = buildSheetPreview(fileName, rows);
+  if (!preview) return [];
 
-  const header = splitCsvLine(rows[0]).map(cell => cell.toLowerCase());
-
-  const getIndex = (keys: string[]) =>
-    header.findIndex(column => keys.includes(column.toLowerCase()));
-
-  return rows.slice(1).map((row, index) => {
-    const cells = splitCsvLine(row);
-    const getValue = (keys: string[]) => {
-      const idx = getIndex(keys);
-      return idx >= 0 ? cells[idx] : "";
-    };
-
-    const days = parseDayString(getValue(["days", "day", "meets", "meeting_days"]));
-    const start = normalizeTimeString(
-      getValue(["start", "start_time", "starttime", "begin"]),
-    );
-    const end = normalizeTimeString(
-      getValue(["end", "end_time", "endtime", "finish"]),
-    );
-    const creditsValue = Number(
-      getValue(["credits", "credit_hours", "hours"]) || 0,
-    );
-
-    return {
-      id: `${index}-${Date.now()}`,
-      code: getValue(["code", "course", "course_code", "subject"]),
-      title: getValue(["title", "name", "course_name"]),
-      classNumber: getValue(["class_number", "classnumber", "crn", "section"]),
-      days,
-      startTime: start,
-      endTime: end,
-      location: getValue(["location", "room", "building"]),
-      instructor: getValue(["instructor", "professor", "faculty"]),
-      credits: Number.isFinite(creditsValue) && creditsValue > 0 ? creditsValue : 3,
-      notes: getValue(["notes", "comment", "comments"]),
-    };
-  });
+  return parseWithGemini([preview]);
 };
 
-const parseJsonCourses = (text: string): CourseInput[] => {
-  const parsed = JSON.parse(text);
-  if (!Array.isArray(parsed)) return [];
+const parseJsonWithGemini = async (
+  fileName: string,
+  text: string,
+): Promise<CourseInput[]> => {
+  let parsed: unknown;
 
-  return parsed.map((raw: Record<string, unknown>, index: number) => {
-    const readValue = (...keys: string[]) => {
-      for (const key of keys) {
-        const value = raw[key];
-        if (typeof value === "string" || typeof value === "number") {
-          return String(value);
-        }
+  try {
+    parsed = JSON.parse(text);
+  } catch (error) {
+    console.error("Failed to parse JSON upload", error);
+    throw new Error("We couldn't read that JSON file. Check that it is valid JSON.");
+  }
+
+  const previews: SheetPreview[] = [];
+
+  const processValue = (value: unknown, name: string) => {
+    if (Array.isArray(value)) {
+      if (!value.length) return;
+
+      if (value.every(item => Array.isArray(item))) {
+        const rows = value.map(row =>
+          Array.isArray(row)
+            ? row.map(cell => normalizeSheetCell(cell))
+            : [normalizeSheetCell(row)],
+        );
+        const preview = buildSheetPreview(name, rows as string[][]);
+        if (preview) previews.push(preview);
+        return;
       }
-      return "";
-    };
 
-    const start = normalizeTimeString(
-      readValue("start_time", "startTime", "start"),
+      if (
+        value.every(
+          item =>
+            Boolean(item) && typeof item === "object" && !Array.isArray(item),
+        )
+      ) {
+        const keys = Array.from(
+          new Set(
+            value.flatMap(item =>
+              Object.keys((item as Record<string, unknown>) ?? {}),
+            ),
+          ),
+        );
+
+        if (!keys.length) return;
+
+        const rows = [
+          keys,
+          ...value.map(item =>
+            keys.map(key => normalizeSheetCell((item as Record<string, unknown>)[key])),
+          ),
+        ];
+        const preview = buildSheetPreview(name, rows);
+        if (preview) previews.push(preview);
+        return;
+      }
+
+      const rows = value.map(item => [normalizeSheetCell(item)]);
+      const preview = buildSheetPreview(name, rows);
+      if (preview) previews.push(preview);
+      return;
+    }
+
+    if (value && typeof value === "object") {
+      Object.entries(value as Record<string, unknown>).forEach(
+        ([key, nested]) => processValue(nested, `${name}.${key}`),
+      );
+      return;
+    }
+
+    if (value === null || value === undefined) return;
+
+    const preview = buildSheetPreview(name, [[normalizeSheetCell(value)]]);
+    if (preview) previews.push(preview);
+  };
+
+  processValue(parsed, fileName.replace(/\.[^.]+$/, ""));
+
+  return parseWithGemini(previews);
+};
+
+const parsePlainTextWithGemini = async (
+  fileName: string,
+  text: string,
+): Promise<CourseInput[]> => {
+  const rows = text
+    .split(/\r?\n/)
+    .map(line => line.trim())
+    .filter(Boolean)
+    .map(line =>
+      line.includes("\t")
+        ? line
+            .split(/\t+/)
+            .map(cell => normalizeSheetCell(cell))
+        : [normalizeSheetCell(line)],
     );
-    const end = normalizeTimeString(readValue("end_time", "endTime", "end"));
-    const creditSource = raw["credits"] ?? raw["credit_hours"] ?? 3;
-    const credits =
-      typeof creditSource === "number"
-        ? creditSource
-        : Number(creditSource) || 3;
 
-    return {
-      id: `${index}-${Date.now()}`,
-      code: readValue("code", "course", "course_code", "subject"),
-      title: readValue("title", "name") || `Course ${index + 1}`,
-      classNumber: readValue("class_number", "classNumber", "crn", "section"),
-      days: parseDayString(readValue("days", "meets", "day", "meeting_days")),
-      startTime: start,
-      endTime: end,
-      location: readValue("location", "room"),
-      instructor: readValue("instructor", "professor"),
-      credits,
-      notes: readValue("notes", "comment"),
-    };
-  });
+  const preview = buildSheetPreview(fileName, rows);
+  if (!preview) return [];
+
+  return parseWithGemini([preview]);
 };
 
 function sanitizeCourses(courseList: CourseInput[]) {
@@ -482,7 +557,8 @@ function sanitizeCourses(courseList: CourseInput[]) {
 const parseSpreadsheetCourses = async (file: File): Promise<CourseInput[]> => {
   const buffer = await file.arrayBuffer();
   const workbook = XLSX.read(buffer, { type: "array" });
-  const previews: SheetPreview[] = workbook.SheetNames.map(name => {
+
+  const previews = workbook.SheetNames.map(name => {
     const sheet = workbook.Sheets[name];
     const table = XLSX.utils.sheet_to_json<(string | number | boolean | null)[]>(
       sheet,
@@ -494,55 +570,13 @@ const parseSpreadsheetCourses = async (file: File): Promise<CourseInput[]> => {
       },
     ) as (string | number | boolean | null)[][];
 
-    const normalized = table
-      .map(row =>
-        row
-          .slice(0, MAX_SHEET_COLUMNS)
-          .map(cell => normalizeSheetCell(cell)),
-      )
-      .filter(row => row.some(cell => cell.length));
-
-    const rows = normalized.slice(0, MAX_SHEET_ROWS);
-    if (!rows.length) return null;
-
-    const columnCount = rows.reduce(
-      (max, row) => Math.max(max, row.length),
-      0,
-    );
-
-    const columnSamples = Array.from({ length: columnCount }).map((_, index) => ({
-      columnIndex: index,
-      samples: rows
-        .map(row => row[index])
-        .filter(value => Boolean(value?.length))
-        .slice(0, 5),
-    }));
-
-    return {
+    return buildSheetPreview(
       name,
-      rows,
-      columnSamples,
-    };
+      table.map(row => row.map(cell => normalizeSheetCell(cell))),
+    );
   }).filter(Boolean) as SheetPreview[];
 
-  try {
-    const aiCourses = await extractCoursesWithGemini(previews);
-    const sanitizedAiCourses = sanitizeCourses(aiCourses);
-    if (sanitizedAiCourses.length) {
-      return sanitizedAiCourses;
-    }
-  } catch (error) {
-    console.error("Gemini schedule extraction failed", error);
-  }
-
-  const [firstSheet] = workbook.SheetNames;
-  if (!firstSheet) return [];
-
-  const sheet = workbook.Sheets[firstSheet];
-  const rows = XLSX.utils.sheet_to_json<Record<string, unknown>>(sheet, {
-    defval: "",
-  });
-  return parseJsonCourses(JSON.stringify(rows));
+  return parseWithGemini(previews);
 };
 
 const buildScheduleFromCourses = (
@@ -1073,31 +1107,34 @@ const Scheduler = () => {
 
   const parseFile = useCallback(
     async (file: File) => {
-      if (file.name.endsWith(".json")) {
-        const text = await file.text();
-        return parseJsonCourses(text);
-      }
+      const extension = file.name.split(".").pop()?.toLowerCase() ?? "";
 
-      if (file.name.endsWith(".csv")) {
-        const text = await file.text();
-        return parseCsvCourses(text);
-      }
-
-      if (file.name.endsWith(".xlsx") || file.name.endsWith(".xls")) {
+      if (extension === "xlsx" || extension === "xls") {
         return parseSpreadsheetCourses(file);
       }
 
-      if (file.type === "text/csv") {
-        const text = await file.text();
-        return parseCsvCourses(text);
+      const text = await file.text();
+
+      if (extension === "csv" || file.type === "text/csv") {
+        return parseCsvWithGemini(file.name, text);
       }
 
-      if (file.type === "application/json") {
-        const text = await file.text();
-        return parseJsonCourses(text);
+      if (extension === "json" || file.type === "application/json") {
+        return parseJsonWithGemini(file.name, text);
       }
 
-      throw new Error("Unsupported file type. Upload CSV, Excel, or JSON.");
+      if (extension === "tsv" || file.type === "text/tab-separated-values") {
+        const tabRows = text
+          .split(/\r?\n/)
+          .map(line => line.trim())
+          .filter(Boolean)
+          .map(line => line.split(/\t+/).map(cell => normalizeSheetCell(cell)));
+        const preview = buildSheetPreview(file.name, tabRows);
+        if (!preview) return [];
+        return parseWithGemini([preview]);
+      }
+
+      return parsePlainTextWithGemini(file.name, text);
     },
     [],
   );
@@ -1110,9 +1147,11 @@ const Scheduler = () => {
 
       setIsParsingFile(true);
       try {
-        const parsed = sanitizeCourses(await parseFile(file));
+        const parsed = await parseFile(file);
         if (!parsed.length) {
-          throw new Error("No courses detected. Check your template headers.");
+          throw new Error(
+            "No courses detected. Please ensure the file contains course schedule information.",
+          );
         }
 
         setCourseCatalog(parsed);

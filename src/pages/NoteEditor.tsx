@@ -74,7 +74,7 @@ export default function NoteEditor() {
         .range(0, 199),
       supabase
         .from('folders')
-        .select('id,name,parent_id,course_id,updated_at,user_id,description')
+        .select('id,name,parent_id,course_id,updated_at,user_id')
         .eq('user_id', userId)
         .order('name')
         .range(0, 199),

@@ -55,10 +55,19 @@ export const clearGeminiKeyCache = () => {
   cachedKey = null;
 };
 
+const GEMINI_ENV_FALLBACKS = [
+  "GEMINI_API_KEY",
+  "GEMINI_API_KEY_FALLBACK",
+  "GEMINI_PRIMARY_API_KEY",
+  "GEMINI_SECONDARY_API_KEY",
+];
+
 export const resolveGeminiKey = async (options: { supabaseUrl?: string | null; serviceRoleKey?: string | null } = {}) => {
-  const envKey = Deno.env.get("GEMINI_API_KEY");
-  if (envKey) {
-    return envKey;
+  for (const envName of GEMINI_ENV_FALLBACKS) {
+    const envKey = Deno.env.get(envName);
+    if (envKey && envKey.trim().length) {
+      return envKey;
+    }
   }
 
   if (cachedKey && cachedKey.expiresAt > Date.now()) {

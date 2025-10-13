@@ -1,3 +1,5 @@
+import { supabase } from '@/integrations/supabase/client';
+
 const GEMINI_MODEL = 'gemini-2.5-pro-exp';
 
 interface GeminiMessage {
@@ -12,12 +14,22 @@ interface GenerateOptions {
 
 const API_ENDPOINT = 'https://generativelanguage.googleapis.com/v1beta';
 
-const getApiKey = () => {
-  const key = import.meta.env.VITE_GEMINI_API_KEY;
-  if (!key) {
-    throw new Error('Gemini API key is not configured. Please set VITE_GEMINI_API_KEY.');
+const DIRECT_KEY_CANDIDATES = [
+  'VITE_GEMINI_API_KEY',
+  'VITE_GEMINI_API_KEY_FALLBACK',
+  'VITE_GEMINI_PRIMARY_API_KEY',
+  'VITE_GEMINI_SECONDARY_API_KEY',
+  'VITE_PUBLIC_GEMINI_API_KEY',
+];
+
+const getDirectApiKey = () => {
+  for (const keyName of DIRECT_KEY_CANDIDATES) {
+    const value = (import.meta.env as Record<string, string | undefined>)[keyName];
+    if (value && value.trim().length) {
+      return value;
+    }
   }
-  return key;
+  return null;
 };
 
 const toContent = (messages: GeminiMessage[]) =>
@@ -36,11 +48,11 @@ const extractText = (payload: any) => {
     .join('\n');
 };
 
-export async function generateGeminiResponse(
+async function callDirectGemini(
+  apiKey: string,
   messages: GeminiMessage[],
-  options: GenerateOptions = {}
+  options: GenerateOptions
 ) {
-  const apiKey = getApiKey();
   const response = await fetch(
     `${API_ENDPOINT}/models/${GEMINI_MODEL}:generateContent?key=${apiKey}`,
     {
@@ -75,6 +87,49 @@ export async function generateGeminiResponse(
   }
 
   return extractText(data);
+}
+
+async function callEdgeFunction(
+  messages: GeminiMessage[],
+  options: GenerateOptions
+) {
+  const { data, error } = await supabase.functions.invoke('gemini-generate', {
+    body: {
+      messages,
+      responseMimeType: options.responseMimeType ?? 'text/plain',
+      temperature: options.temperature ?? 0.4,
+      model: GEMINI_MODEL,
+    },
+  });
+
+  if (error) {
+    throw new Error(error.message ?? 'Gemini request failed');
+  }
+
+  if (!data) {
+    throw new Error('Gemini returned an empty response');
+  }
+
+  if ((options.responseMimeType ?? 'text/plain') === 'application/json') {
+    if ('json' in data && data.json !== undefined) {
+      return data.json;
+    }
+    throw new Error('Gemini returned invalid JSON');
+  }
+
+  return data.text ?? '';
+}
+
+export async function generateGeminiResponse(
+  messages: GeminiMessage[],
+  options: GenerateOptions = {}
+) {
+  const directKey = getDirectApiKey();
+  if (directKey) {
+    return callDirectGemini(directKey, messages, options);
+  }
+
+  return callEdgeFunction(messages, options);
 }
 
 export const GeminiClient = {

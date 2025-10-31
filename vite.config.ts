@@ -4,6 +4,9 @@ import compression from "vite-plugin-compression";
 import { visualizer } from "rollup-plugin-visualizer";
 
 export default defineConfig({
+  server: {
+    port: 8080,
+  },
   plugins: [
     react(),
     splitVendorChunkPlugin(),

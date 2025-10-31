@@ -124,11 +124,7 @@ export async function generateGeminiResponse(
   messages: GeminiMessage[],
   options: GenerateOptions = {}
 ) {
-  const directKey = getDirectApiKey();
-  if (directKey) {
-    return callDirectGemini(directKey, messages, options);
-  }
-
+  // Always use edge function to ensure backend GEMINI_API_KEY is used
   return callEdgeFunction(messages, options);
 }
 

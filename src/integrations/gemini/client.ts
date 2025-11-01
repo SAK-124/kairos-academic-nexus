@@ -1,6 +1,6 @@
 import { supabase } from '@/integrations/supabase/client';
 
-const GEMINI_MODEL = 'gemini-2.5-pro-exp';
+const GEMINI_MODEL = 'gemini-2.5-pro';
 
 interface GeminiMessage {
   role: 'user' | 'model' | 'system';

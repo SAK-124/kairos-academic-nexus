@@ -21,7 +21,6 @@ import {
   Upload,
   Edit2,
   Save,
-  MapPin,
 } from "lucide-react";
 import * as XLSX from "xlsx";
 
@@ -985,42 +984,41 @@ const ScheduleGrid = ({
                           <div className="absolute top-2 left-2 w-2 h-2 rounded-full bg-destructive animate-pulse" />
                         )}
 
-                        <div className="h-full flex flex-col">
-                          {/* Course title and code */}
-                          <div className={cn("flex-1 min-h-0", isVeryCompact ? "mb-0" : "mb-1")}>
-                            <p className={cn(
-                              "font-bold leading-tight",
-                              isVeryCompact ? "text-xs line-clamp-1" : isCompact ? "text-sm line-clamp-2" : "text-base line-clamp-2"
-                            )}>
-                              {block.code}
+                        <div className="flex h-full flex-col justify-between">
+                          <div
+                            className={cn(
+                              "flex flex-1 flex-col items-center justify-center gap-1 text-center",
+                              isVeryCompact ? "py-1" : "py-2"
+                            )}
+                          >
+                            <p
+                              className={cn(
+                                "font-semibold leading-tight tracking-tight",
+                                isVeryCompact
+                                  ? "text-[10px]"
+                                  : isCompact
+                                    ? "text-xs"
+                                    : "text-sm"
+                              )}
+                              title={[block.title, block.code].filter(Boolean).join(" • ")}
+                            >
+                              {block.title || block.code}
                             </p>
-                            {!isVeryCompact && (
-                              <p className={cn(
-                                "font-medium text-muted-foreground leading-tight mt-0.5",
-                                isCompact ? "text-xs line-clamp-1" : "text-sm line-clamp-1"
-                              )}>
-                                {block.title}
+                            {!isVeryCompact && block.code && (
+                              <p
+                                className={cn(
+                                  "font-medium uppercase tracking-wide text-primary-foreground/80",
+                                  isCompact ? "text-[11px]" : "text-xs"
+                                )}
+                              >
+                                {block.code}
                               </p>
                             )}
                           </div>
 
-                          {/* Time - always show */}
                           {!isVeryCompact && (
-                            <p className={cn(
-                              "font-mono font-semibold text-muted-foreground",
-                              isCompact ? "text-xs" : "text-sm"
-                            )}>
-                              {block.startTime} - {block.endTime}
-                            </p>
-                          )}
-
-                          {/* Location (only if enough space) */}
-                          {!isCompact && block.location && (
-                            <div className="mt-2 flex items-center gap-1.5">
-                              <MapPin className="h-3.5 w-3.5 flex-shrink-0 text-muted-foreground" />
-                              <p className="text-xs font-medium text-muted-foreground line-clamp-1">
-                                {block.location}
-                              </p>
+                            <div className="pb-1 text-[11px] font-mono font-semibold text-primary-foreground/80">
+                              {block.startTime} – {block.endTime}
                             </div>
                           )}
                         </div>
@@ -1099,6 +1097,7 @@ const Scheduler = () => {
   const [candidateProposal, setCandidateProposal] = useState<AiScheduleProposal | null>(null);
   const [acceptedSchedule, setAcceptedSchedule] = useState<GeneratedSchedule | null>(null);
   const [acceptedNotes, setAcceptedNotes] = useState<string>("");
+  const [activePane, setActivePane] = useState<"conversation" | "proposal">("conversation");
 
   const chatScrollRef = useRef<HTMLDivElement>(null);
 
@@ -1180,6 +1179,12 @@ const Scheduler = () => {
     if (!candidateProposal?.courses.length) return null;
     return buildScheduleFromCourses(candidateProposal.courses, DEFAULT_PREFERENCES);
   }, [candidateProposal]);
+
+  useEffect(() => {
+    if (!candidatePreview) {
+      setActivePane("conversation");
+    }
+  }, [candidatePreview]);
 
   const candidateBounds = useMemo(
     () => computeScheduleBounds(candidatePreview),
@@ -1452,6 +1457,9 @@ const Scheduler = () => {
   };
 
   const summaryCourses = courseCatalog.slice(0, 6);
+  const hasCandidatePreview = Boolean(candidatePreview);
+  const conversationCollapsed = hasCandidatePreview && activePane === "proposal";
+  const proposalCollapsed = hasCandidatePreview && activePane === "conversation";
   return (
     <div className="min-h-screen relative overflow-hidden bg-background">
       <Navigation
@@ -1461,7 +1469,7 @@ const Scheduler = () => {
         onLoginClick={() => navigate("/")}
       />
 
-      <div className="container mx-auto px-6 pt-24 pb-12">
+      <div className="mx-auto w-full max-w-6xl px-6 pt-24 pb-12">
         <div className="flex items-center gap-3 mb-8">
           <Button
             variant="ghost"
@@ -1605,144 +1613,230 @@ const Scheduler = () => {
         )}
 
         {step === "chat" && (
-          <div className="mt-12 grid gap-8 xl:grid-cols-[1.4fr_1fr]">
-            <Card className="bg-background/70 backdrop-blur-xl border border-primary/20 shadow-2xl flex flex-col">
-              <CardHeader className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between text-left">
-                <div>
-                  <CardTitle className="text-2xl flex items-center gap-2">
-                    <MessagesSquare className="h-5 w-5 text-primary" /> Talk to Kairos
-                  </CardTitle>
-                  <CardDescription>
-                    Share your goals, time preferences, and anything else the AI should consider. When a plan is ready, it'll appear on the right.
-                  </CardDescription>
+          <div className="mt-12 space-y-6">
+            {hasCandidatePreview && (
+              <div className="flex justify-center xl:justify-end">
+                <div className="inline-flex items-center gap-1 rounded-full border border-white/10 bg-background/70 p-1 shadow-[var(--elevation-2)]">
+                  <button
+                    type="button"
+                    onClick={() => setActivePane("conversation")}
+                    className={cn(
+                      "rounded-full px-4 py-2 text-sm font-semibold transition-all",
+                      activePane === "conversation"
+                        ? "bg-primary text-primary-foreground shadow"
+                        : "text-muted-foreground hover:text-foreground"
+                    )}
+                  >
+                    Conversation
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setActivePane("proposal")}
+                    className={cn(
+                      "rounded-full px-4 py-2 text-sm font-semibold transition-all",
+                      activePane === "proposal"
+                        ? "bg-primary text-primary-foreground shadow"
+                        : "text-muted-foreground hover:text-foreground"
+                    )}
+                  >
+                    Proposed schedule
+                  </button>
                 </div>
-                <div className="flex flex-wrap gap-2">
-                  {uploadedFileName && (
-                    <Badge variant="secondary" className="uppercase tracking-wide">
-                      {uploadedFileName}
-                    </Badge>
-                  )}
-                  <Button variant="outline" size="sm" onClick={handleReset}>
-                    <RefreshCw className="mr-2 h-4 w-4" /> Re-upload courses
-                  </Button>
-                </div>
-              </CardHeader>
-              <CardContent className="flex-1 flex flex-col gap-4">
-                {summaryCourses.length > 0 && (
-                  <div className="rounded-xl border border-white/10 bg-background/60 p-4 text-left">
-                    <p className="text-xs uppercase tracking-wide text-muted-foreground mb-2">
-                      Sample from your catalog
-                    </p>
+              </div>
+            )}
+
+            <div
+              className={cn(
+                "flex flex-col gap-6 xl:gap-8",
+                hasCandidatePreview ? "xl:flex-row xl:items-stretch" : ""
+              )}
+            >
+              <div
+                className={cn(
+                  "transition-all duration-300",
+                  hasCandidatePreview ? "xl:flex-1" : "",
+                  conversationCollapsed ? "cursor-pointer" : ""
+                )}
+                onClick={() => {
+                  if (conversationCollapsed) setActivePane("conversation");
+                }}
+                style={
+                  hasCandidatePreview
+                    ? { flexBasis: conversationCollapsed ? "34%" : "66%" }
+                    : undefined
+                }
+              >
+                <Card className="bg-background/70 backdrop-blur-xl border border-primary/20 shadow-2xl flex h-full flex-col">
+                  <CardHeader className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between text-left">
+                    <div>
+                      <CardTitle className="text-2xl flex items-center gap-2">
+                        <MessagesSquare className="h-5 w-5 text-primary" /> Talk to Kairos
+                      </CardTitle>
+                      <CardDescription>
+                        Share your goals, time preferences, and anything else the AI should consider. When a plan is ready, it'll appear on the right.
+                      </CardDescription>
+                    </div>
                     <div className="flex flex-wrap gap-2">
-                      {summaryCourses.map(course => (
-                        <Badge key={course.id} variant="outline" className="text-xs">
-                          {course.code || course.title} {course.classNumber ? `• ${course.classNumber}` : ""}
+                      {uploadedFileName && (
+                        <Badge variant="secondary" className="uppercase tracking-wide">
+                          {uploadedFileName}
                         </Badge>
-                      ))}
+                      )}
+                      <Button variant="outline" size="sm" onClick={handleReset}>
+                        <RefreshCw className="mr-2 h-4 w-4" /> Re-upload courses
+                      </Button>
                     </div>
-                  </div>
-                )}
-                <div
-                  ref={chatScrollRef}
-                  className="flex-1 rounded-xl border border-white/10 bg-background/60 p-4 space-y-4 overflow-y-auto max-h-[28rem]"
-                >
-                  {displayMessages.length === 0 && !isSending ? (
-                    <div className="flex h-full items-center justify-center text-sm text-muted-foreground">
-                      Kairos is reading your catalog and will start the conversation shortly.
-                    </div>
+                  </CardHeader>
+
+                  {!hasCandidatePreview || !conversationCollapsed ? (
+                    <>
+                      <CardContent className="flex-1 flex flex-col gap-4">
+                        {summaryCourses.length > 0 && (
+                          <div className="rounded-xl border border-white/10 bg-background/60 p-4 text-left">
+                            <p className="text-xs uppercase tracking-wide text-muted-foreground mb-2">
+                              Sample from your catalog
+                            </p>
+                            <div className="flex flex-wrap gap-2">
+                              {summaryCourses.map(course => (
+                                <Badge key={course.id} variant="outline" className="text-xs">
+                                  {course.code || course.title} {course.classNumber ? `• ${course.classNumber}` : ""}
+                                </Badge>
+                              ))}
+                            </div>
+                          </div>
+                        )}
+                        <div
+                          ref={chatScrollRef}
+                          className="flex-1 rounded-xl border border-white/10 bg-background/60 p-4 space-y-4 overflow-y-auto max-h-[30rem]"
+                        >
+                          {displayMessages.length === 0 && !isSending ? (
+                            <div className="flex h-full items-center justify-center text-sm text-muted-foreground">
+                              Kairos is reading your catalog and will start the conversation shortly.
+                            </div>
+                          ) : (
+                            displayMessages.map((message, index) => (
+                              <ChatBubble key={index} message={message} />
+                            ))
+                          )}
+                          {isSending && (
+                            <div className="flex justify-start">
+                              <div className="flex items-center gap-3 rounded-2xl border border-white/10 bg-background/70 px-4 py-2 text-sm text-muted-foreground">
+                                <Loader2 className="h-4 w-4 animate-spin" />
+                                Thinking...
+                              </div>
+                            </div>
+                          )}
+                        </div>
+                        {aiError && (
+                          <div className="flex items-center gap-2 text-sm text-destructive">
+                            <AlertTriangle className="h-4 w-4" /> {aiError}
+                          </div>
+                        )}
+                      </CardContent>
+                      <CardFooter className="flex flex-col gap-3">
+                        {acceptedSchedule && (
+                          <div className="w-full rounded-lg border border-primary/20 bg-primary/5 p-3 text-sm text-muted-foreground">
+                            <p className="flex items-center gap-2">
+                              <CheckCircle2 className="h-4 w-4 text-primary" />
+                              Schedule saved! You can continue chatting to request changes.
+                            </p>
+                          </div>
+                        )}
+                        <Textarea
+                          value={userInput}
+                          onChange={event => setUserInput(event.target.value)}
+                          onKeyDown={handleKeyDown}
+                          onFocus={() => hasCandidatePreview && setActivePane("conversation")}
+                          placeholder={acceptedSchedule ? "Request changes or ask for suggestions..." : "Tell Kairos which classes you need, your ideal days, breaks, or any constraints."}
+                          className="min-h-[90px]"
+                          disabled={isSending}
+                        />
+                        <div className="flex items-center justify-between">
+                          <p className="text-xs text-muted-foreground">
+                            Press Enter to send, or Shift + Enter for a new line.
+                          </p>
+                          <Button onClick={handleSendMessage} disabled={isSending || !userInput.trim()}>
+                            {isSending ? (
+                              <>
+                                <Loader2 className="mr-2 h-4 w-4 animate-spin" /> Sending
+                              </>
+                            ) : (
+                              <>
+                                <Send className="mr-2 h-4 w-4" /> Send message
+                              </>
+                            )}
+                          </Button>
+                        </div>
+                      </CardFooter>
+                    </>
                   ) : (
-                    displayMessages.map((message, index) => (
-                      <ChatBubble key={index} message={message} />
-                    ))
+                    <CardContent className="text-sm text-muted-foreground">
+                      <p className="text-left">
+                        Conversation minimized. Click here or use the toggle above to continue chatting with Kairos.
+                      </p>
+                    </CardContent>
                   )}
-                  {isSending && (
-                    <div className="flex justify-start">
-                      <div className="flex items-center gap-3 rounded-2xl border border-white/10 bg-background/70 px-4 py-2 text-sm text-muted-foreground">
-                        <Loader2 className="h-4 w-4 animate-spin" />
-                        Thinking...
-                      </div>
-                    </div>
+                </Card>
+              </div>
+
+              {candidatePreview ? (
+                <div
+                  className={cn(
+                    "transition-all duration-300 xl:flex-1",
+                    proposalCollapsed ? "cursor-pointer" : ""
                   )}
-                </div>
-                {aiError && (
-                  <div className="flex items-center gap-2 text-sm text-destructive">
-                    <AlertTriangle className="h-4 w-4" /> {aiError}
-                  </div>
-                )}
-              </CardContent>
-              <CardFooter className="flex flex-col gap-3">
-                {acceptedSchedule && (
-                  <div className="w-full rounded-lg border border-primary/20 bg-primary/5 p-3 text-sm text-muted-foreground">
-                    <p className="flex items-center gap-2">
-                      <CheckCircle2 className="h-4 w-4 text-primary" />
-                      Schedule saved! You can continue chatting to request changes.
-                    </p>
-                  </div>
-                )}
-                <Textarea
-                  value={userInput}
-                  onChange={event => setUserInput(event.target.value)}
-                  onKeyDown={handleKeyDown}
-                  placeholder={acceptedSchedule ? "Request changes or ask for suggestions..." : "Tell Kairos which classes you need, your ideal days, breaks, or any constraints."}
-                  className="min-h-[90px]"
-                  disabled={isSending}
-                />
-                <div className="flex items-center justify-between">
-                  <p className="text-xs text-muted-foreground">
-                    Press Enter to send, or Shift + Enter for a new line.
-                  </p>
-                  <Button onClick={handleSendMessage} disabled={isSending || !userInput.trim()}>
-                    {isSending ? (
+                  onClick={() => {
+                    if (proposalCollapsed) setActivePane("proposal");
+                  }}
+                  style={{ flexBasis: proposalCollapsed ? "34%" : "66%" }}
+                >
+                  <Card className="bg-background/70 border border-primary/20 shadow-2xl flex h-full flex-col">
+                    <CardHeader className="text-left space-y-2">
+                      <CardTitle className="flex items-center gap-2 text-xl">
+                        <CheckCircle2 className="h-5 w-5 text-primary" /> Proposed schedule
+                      </CardTitle>
+                      <CardDescription>
+                        Review Kairos' latest suggestion. Accept it to pin the plan below, or continue the chat to request changes.
+                      </CardDescription>
+                    </CardHeader>
+
+                    {!proposalCollapsed ? (
                       <>
-                        <Loader2 className="mr-2 h-4 w-4 animate-spin" /> Sending
+                        <CardContent className="space-y-4">
+                          {candidateProposal?.notes && (
+                            <div className="rounded-lg border border-white/10 bg-background/60 p-4 text-sm text-left text-muted-foreground">
+                              {candidateProposal.notes}
+                            </div>
+                          )}
+                          {candidatePreview.conflicts.length > 0 && (
+                            <div className="rounded-lg border border-destructive/40 bg-destructive/10 p-3 text-left text-sm text-destructive">
+                              Gemini spotted {candidatePreview.conflicts.length} potential conflict{candidatePreview.conflicts.length === 1 ? "" : "s"}. Ask for adjustments or edit manually after accepting.
+                            </div>
+                          )}
+                          <ScheduleGrid
+                            schedule={candidatePreview}
+                            bounds={candidateBounds}
+                            duration={candidateDuration}
+                          />
+                        </CardContent>
+                        <CardFooter className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                          <Button onClick={handleAcceptSchedule} disabled={!user} className="w-full sm:w-auto">
+                            <Save className="mr-2 h-4 w-4" /> {acceptedSchedule ? "Save Changes" : "Save Schedule"}
+                          </Button>
+                          {!user && (
+                            <p className="text-xs text-muted-foreground sm:ml-2">Sign in to save</p>
+                          )}
+                        </CardFooter>
                       </>
                     ) : (
-                      <>
-                        <Send className="mr-2 h-4 w-4" /> Send message
-                      </>
+                      <CardContent className="text-sm text-muted-foreground">
+                        <p className="text-left">
+                          Schedule preview minimized. Click here or use the toggle above to open the full grid.
+                        </p>
+                      </CardContent>
                     )}
-                  </Button>
+                  </Card>
                 </div>
-              </CardFooter>
-            </Card>
-
-            <div className="space-y-6">
-              {candidatePreview ? (
-                <Card className="bg-background/70 border border-primary/20 shadow-2xl">
-                  <CardHeader className="text-left space-y-2">
-                    <CardTitle className="flex items-center gap-2 text-xl">
-                      <CheckCircle2 className="h-5 w-5 text-primary" /> Proposed schedule
-                    </CardTitle>
-                    <CardDescription>
-                      Review Kairos' latest suggestion. Accept it to pin the plan below, or continue the chat to request changes.
-                    </CardDescription>
-                  </CardHeader>
-                  <CardContent className="space-y-4">
-                    {candidateProposal?.notes && (
-                      <div className="rounded-lg border border-white/10 bg-background/60 p-4 text-sm text-left text-muted-foreground">
-                        {candidateProposal.notes}
-                      </div>
-                    )}
-                    {candidatePreview.conflicts.length > 0 && (
-                      <div className="rounded-lg border border-destructive/40 bg-destructive/10 p-3 text-left text-sm text-destructive">
-                        Gemini spotted {candidatePreview.conflicts.length} potential conflict{candidatePreview.conflicts.length === 1 ? "" : "s"}. Ask for adjustments or edit manually after accepting.
-                      </div>
-                    )}
-                    <ScheduleGrid
-                      schedule={candidatePreview}
-                      bounds={candidateBounds}
-                      duration={candidateDuration}
-                    />
-                  </CardContent>
-                  <CardFooter className="flex gap-2">
-                    <Button onClick={handleAcceptSchedule} disabled={!user}>
-                      <Save className="mr-2 h-4 w-4" /> {acceptedSchedule ? "Save Changes" : "Save Schedule"}
-                    </Button>
-                    {!user && (
-                      <p className="text-xs text-muted-foreground ml-2">Sign in to save</p>
-                    )}
-                  </CardFooter>
-                </Card>
               ) : (
                 <Card className="bg-background/60 border border-dashed border-primary/30">
                   <CardHeader className="text-left">

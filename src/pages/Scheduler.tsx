@@ -892,21 +892,21 @@ const ScheduleGrid = ({
   }
 
   return (
-    <div className="w-full overflow-hidden rounded-xl bg-surface-container-low shadow-[var(--elevation-2)]">
+    <div className="w-full overflow-hidden rounded-2xl bg-surface-container-low shadow-[var(--elevation-3)] border border-border/50">
       {/* Header with day names and stats */}
-      <div className="flex border-b border-border/30">
-        <div className="w-20 flex-shrink-0 bg-surface-container-low border-r border-border/30" />
+      <div className="flex border-b-2 border-border/40 bg-surface-container">
+        <div className="w-24 flex-shrink-0 bg-surface-container border-r-2 border-border/40" />
         {availableDays.map((day) => {
           const blocks = schedule.blocksByDay[day] ?? [];
           const hasConflicts = blocks.some((b) => b.conflict);
           
           return (
-            <div key={day} className="flex-1 min-w-[140px] px-4 py-3 text-center border-r border-border/10 last:border-r-0">
-              <div className="flex flex-col items-center gap-1">
-                <h3 className="font-semibold text-sm">{day}</h3>
+            <div key={day} className="flex-1 min-w-[200px] px-6 py-4 text-center border-r border-border/20 last:border-r-0">
+              <div className="flex flex-col items-center gap-2">
+                <h3 className="font-bold text-base tracking-wide">{day}</h3>
                 <Badge 
                   variant={blocks.length === 0 ? "secondary" : hasConflicts ? "destructive" : "default"} 
-                  className="text-[10px] px-2 py-0"
+                  className="text-xs px-3 py-1 font-medium"
                 >
                   {blocks.length === 0 ? "Free" : `${blocks.length} class${blocks.length > 1 ? "es" : ""}`}
                 </Badge>
@@ -917,15 +917,15 @@ const ScheduleGrid = ({
       </div>
 
       {/* Calendar body with horizontal scroll */}
-      <div className="flex overflow-x-auto scrollbar-thin scrollbar-track-transparent scrollbar-thumb-border/50 hover:scrollbar-thumb-border/70 snap-x snap-mandatory">
+      <div className="flex overflow-x-auto scrollbar-thin scrollbar-track-surface-container scrollbar-thumb-border/60 hover:scrollbar-thumb-primary/40 snap-x snap-mandatory">
         {/* Time axis (sticky left) */}
-        <div className="w-20 flex-shrink-0 sticky left-0 bg-surface-container-low z-10 border-r border-border/30">
-          <div className="relative" style={{ height: `${timeLabels.length * 60}px` }}>
+        <div className="w-24 flex-shrink-0 sticky left-0 bg-surface-container z-20 border-r-2 border-border/40">
+          <div className="relative" style={{ height: `${timeLabels.length * 80}px` }}>
             {timeLabels.map((time, idx) => (
               <div
                 key={time}
-                className="absolute left-0 right-0 text-xs text-muted-foreground font-mono text-center px-2"
-                style={{ top: `${idx * 60}px` }}
+                className="absolute left-0 right-0 text-sm font-semibold text-muted-foreground font-mono text-center px-2 -translate-y-2"
+                style={{ top: `${idx * 80}px` }}
               >
                 {time}
               </div>
@@ -940,15 +940,15 @@ const ScheduleGrid = ({
           return (
             <div 
               key={day} 
-              className="flex-1 min-w-[140px] relative border-r border-border/10 last:border-r-0 snap-center"
-              style={{ height: `${timeLabels.length * 60}px` }}
+              className="flex-1 min-w-[200px] relative border-r border-border/20 last:border-r-0 snap-center bg-background/30"
+              style={{ height: `${timeLabels.length * 80}px` }}
             >
               {/* Horizontal gridlines */}
               {timeLabels.map((_, idx) => (
                 <div
                   key={idx}
-                  className="absolute left-0 right-0 border-t border-border/20"
-                  style={{ top: `${idx * 60}px` }}
+                  className="absolute left-0 right-0 border-t-2 border-border/20"
+                  style={{ top: `${idx * 80}px` }}
                 />
               ))}
 
@@ -958,88 +958,113 @@ const ScheduleGrid = ({
                 const end = timeStringToMinutes(block.endTime);
                 const top = ((start - bounds.start) / duration) * 100;
                 const height = ((end - start) / duration) * 100;
-                const isCompact = height < 15;
+                const isVeryCompact = height < 12;
+                const isCompact = height < 20;
 
                 return (
                   <HoverCard key={`${block.id || blockIdx}-${day}`}>
                     <HoverCardTrigger asChild>
                       <div
                         className={cn(
-                          "absolute inset-x-2 rounded-xl p-3 transition-all duration-200 cursor-pointer group",
-                          "bg-gradient-to-br from-surface-container-high to-surface-container",
-                          "border shadow-[var(--elevation-2)]",
-                          "hover:shadow-[var(--elevation-4)] hover:scale-[1.02]",
+                          "absolute inset-x-3 rounded-xl transition-all duration-200 cursor-pointer group overflow-hidden",
+                          "bg-gradient-to-br from-primary/20 to-primary/10 backdrop-blur-sm",
+                          "border-2 shadow-[var(--elevation-2)]",
+                          "hover:shadow-[var(--elevation-4)] hover:scale-[1.03] hover:z-10",
                           block.conflict
-                            ? "border-destructive/50 border-l-4 border-l-destructive bg-destructive/5"
-                            : "border-primary/20"
+                            ? "border-destructive/70 border-l-[6px] border-l-destructive bg-destructive/10"
+                            : "border-primary/40",
+                          isVeryCompact ? "p-2" : isCompact ? "p-3" : "p-4"
                         )}
                         style={{ top: `${top}%`, height: `${height}%` }}
                       >
                         {/* Conflict indicator */}
                         {block.conflict && (
-                          <div className="absolute top-2 left-2 w-2 h-2 rounded-full bg-destructive animate-pulse" />
+                          <div className="absolute top-3 left-3 w-3 h-3 rounded-full bg-destructive animate-pulse shadow-lg" />
                         )}
 
-                        {/* Course code badge */}
-                        <Badge 
-                          variant={block.conflict ? "destructive" : "default"}
-                          className="absolute top-2 right-2 text-[10px] px-1.5 py-0"
-                        >
-                          {block.code}
-                        </Badge>
+                        <div className="h-full flex flex-col justify-between">
+                          <div className="flex-1 min-h-0">
+                            {/* Course code - top right */}
+                            <div className="absolute top-2 right-2">
+                              <Badge 
+                                variant={block.conflict ? "destructive" : "default"}
+                                className="text-xs px-2 py-0.5 font-bold shadow-sm"
+                              >
+                                {block.code}
+                              </Badge>
+                            </div>
 
-                        {/* Course title */}
-                        <p className={cn(
-                          "font-semibold pr-16 mb-1",
-                          isCompact ? "text-xs line-clamp-1" : "text-sm line-clamp-2"
-                        )}>
-                          {block.title || block.code}
-                        </p>
+                            {/* Course title */}
+                            <div className={cn("pr-20", isVeryCompact ? "mb-0" : "mb-2")}>
+                              <p className={cn(
+                                "font-bold leading-tight",
+                                isVeryCompact ? "text-xs line-clamp-1" : isCompact ? "text-sm line-clamp-2" : "text-base line-clamp-3"
+                              )}>
+                                {block.title || block.code}
+                              </p>
+                            </div>
 
-                        {/* Time */}
-                        <p className="text-xs text-muted-foreground font-mono">
-                          {block.startTime} - {block.endTime}
-                        </p>
+                            {/* Time - always show */}
+                            {!isVeryCompact && (
+                              <p className={cn(
+                                "font-mono font-semibold text-muted-foreground",
+                                isCompact ? "text-xs" : "text-sm"
+                              )}>
+                                {block.startTime} - {block.endTime}
+                              </p>
+                            )}
 
-                        {/* Location (only if enough space) */}
-                        {!isCompact && block.location && (
-                          <p className="text-xs text-muted-foreground mt-1 flex items-center gap-1 line-clamp-1">
-                            <MapPin className="h-3 w-3 flex-shrink-0" />
-                            {block.location}
-                          </p>
-                        )}
+                            {/* Location (only if enough space) */}
+                            {!isCompact && block.location && (
+                              <div className="mt-2 flex items-center gap-1.5">
+                                <MapPin className="h-3.5 w-3.5 flex-shrink-0 text-muted-foreground" />
+                                <p className="text-xs font-medium text-muted-foreground line-clamp-1">
+                                  {block.location}
+                                </p>
+                              </div>
+                            )}
+                          </div>
+                        </div>
                       </div>
                     </HoverCardTrigger>
-                    <HoverCardContent className="w-80" side="right">
-                      <div className="space-y-2">
-                        <h4 className="font-semibold text-base">{block.title}</h4>
-                        <p className="text-sm text-muted-foreground">
-                          {block.code}
-                          {block.classNumber && ` • #${block.classNumber}`}
-                        </p>
-                        <Separator />
-                        <div className="text-sm space-y-1">
-                          <p>
-                            <strong>Time:</strong> {block.startTime} - {block.endTime}
+                    <HoverCardContent className="w-96 p-5" side="right">
+                      <div className="space-y-3">
+                        <div>
+                          <h4 className="font-bold text-lg leading-tight">{block.title}</h4>
+                          <p className="text-sm text-muted-foreground mt-1">
+                            {block.code}
+                            {block.classNumber && ` • Class #${block.classNumber}`}
                           </p>
+                        </div>
+                        <Separator />
+                        <div className="space-y-2 text-sm">
+                          <div className="flex items-center justify-between">
+                            <span className="font-semibold">Time:</span>
+                            <span className="font-mono">{block.startTime} - {block.endTime}</span>
+                          </div>
                           {block.instructor && (
-                            <p>
-                              <strong>Instructor:</strong> {block.instructor}
-                            </p>
+                            <div className="flex items-center justify-between">
+                              <span className="font-semibold">Instructor:</span>
+                              <span>{block.instructor}</span>
+                            </div>
                           )}
                           {block.location && (
-                            <p>
-                              <strong>Location:</strong> {block.location}
-                            </p>
+                            <div className="flex items-center justify-between">
+                              <span className="font-semibold">Location:</span>
+                              <span>{block.location}</span>
+                            </div>
                           )}
-                          <p>
-                            <strong>Credits:</strong> {block.credits}
-                          </p>
+                          <div className="flex items-center justify-between">
+                            <span className="font-semibold">Credits:</span>
+                            <Badge variant="outline">{block.credits}</Badge>
+                          </div>
                         </div>
                         {block.notes && (
                           <>
                             <Separator />
-                            <p className="text-xs text-muted-foreground">{block.notes}</p>
+                            <div className="bg-muted/50 rounded-lg p-3">
+                              <p className="text-xs text-muted-foreground leading-relaxed">{block.notes}</p>
+                            </div>
                           </>
                         )}
                       </div>

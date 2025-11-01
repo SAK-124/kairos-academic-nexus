@@ -1,26 +1,19 @@
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
 import type { User } from "@supabase/supabase-js";
 import { Button } from "@/components/ui/button";
-import { LogOut, Shield, Menu } from "lucide-react";
+import { LogOut, Shield, Menu, User as UserIcon } from "lucide-react";
 import { ThemeToggle } from "./ThemeToggle";
 import { AnimatedLogo } from "./AnimatedLogo";
 import { supabase } from "@/integrations/supabase/client";
-import { useToast } from "@/hooks/use-toast";
 import {
-  Sheet,
-  SheetContent,
-  SheetTrigger,
-} from "@/components/ui/sheet";
-import { prefetch, prefetchModule } from "@/lib/prefetch";
-
-const routePrefetchers: Record<string, () => Promise<void>> = {
-  "/notes": () => prefetchModule(() => import("@/pages/Notes")),
-  "/scheduler": () => prefetchModule(() => import("@/pages/Scheduler")),
-  "/privacy": () => prefetchModule(() => import("@/pages/PrivacyPolicy")),
-  "/terms": () => prefetchModule(() => import("@/pages/TermsOfService")),
-  "/contact": () => prefetchModule(() => import("@/pages/Contact")),
-};
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
 
 interface NavigationProps {
   user: User | null;
@@ -32,27 +25,22 @@ interface NavigationProps {
 export const Navigation = ({ user, isAdmin, onAdminClick, onLoginClick }: NavigationProps) => {
   const navigate = useNavigate();
   const location = useLocation();
-  const { toast } = useToast();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
-  const prefetchRoute = (route?: string) => {
-    if (!route) return;
-    prefetch(route);
-    void routePrefetchers[route]?.();
-  };
+  const isPublicPage = location.pathname === '/';
 
   const handleSignOut = async () => {
     const { error } = await supabase.auth.signOut();
     if (error) {
       console.error("Error signing out:", error);
+    } else {
+      navigate('/');
     }
   };
 
   const scrollToSection = (sectionId: string) => {
-    // If not on home page, navigate there first
     if (location.pathname !== '/') {
       navigate('/');
-      // Wait for navigation to complete before scrolling
       setTimeout(() => {
         const element = document.getElementById(sectionId);
         element?.scrollIntoView({ behavior: 'smooth', block: 'start' });
@@ -69,105 +57,69 @@ export const Navigation = ({ user, isAdmin, onAdminClick, onLoginClick }: Naviga
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
-  const handleNotesClick = () => {
-    prefetchRoute("/notes");
-    if (!user) {
-      toast({
-        title: 'Authentication Required',
-        description: 'Please sign in to access your notes',
-      });
-      onLoginClick();
-    } else {
-      navigate('/notes');
-      setMobileMenuOpen(false);
-    }
-  };
-
-  const navLinks = [
-    { label: "Home", id: "home" },
-    { label: "Notes", action: handleNotesClick, prefetchRoute: "/notes" },
+  // Public navigation links (landing page)
+  const publicNavLinks = [
     { label: "Features", id: "features" },
     { label: "Pricing", id: "pricing" },
     { label: "FAQs", id: "faqs" },
   ];
-  const handleWaitlistClick = () => {
-    scrollToSection('waitlist');
-  };
-
-
-
 
   return (
-    <header className="fixed top-0 left-0 right-0 z-50 h-16 bg-background border-b shadow-[var(--elevation-1)]">
+    <header className="fixed top-0 left-0 right-0 z-50 h-16 bg-surface border-b border-outline shadow-[var(--elevation-1)]">
       <div className="container mx-auto h-full flex items-center justify-between px-4 md:px-6">
         <AnimatedLogo onClick={handleLogoClick} />
         
-        {/* Desktop Navigation */}
-        <nav className="hidden lg:flex items-center gap-6">
-          {navLinks.map((link) => (
-            <button
-              key={link.label}
-              onClick={() => {
-                if (link.action) {
-                  link.action();
-                } else if (link.id) {
-                  scrollToSection(link.id);
-                }
-              }}
-              onMouseEnter={() => prefetchRoute(link.prefetchRoute)}
-              className="text-sm font-medium text-muted-foreground hover:text-foreground transition-colors"
-            >
-              {link.label}
-            </button>
-          ))}
-        </nav>
+        {/* Desktop Navigation - Public Pages Only */}
+        {isPublicPage && (
+          <nav className="hidden lg:flex items-center gap-6">
+            {publicNavLinks.map((link) => (
+              <button
+                key={link.label}
+                onClick={() => scrollToSection(link.id)}
+                className="text-sm font-medium text-muted-foreground hover:text-foreground transition-colors"
+              >
+                {link.label}
+              </button>
+            ))}
+          </nav>
+        )}
         
         {/* Desktop Actions */}
         <div className="hidden md:flex items-center gap-3">
           <ThemeToggle />
-          <Button
-            onClick={handleWaitlistClick}
-            variant="default"
-            size="sm"
-          >
-            Join Waitlist
-          </Button>
           
           {user ? (
-            <>
-              {isAdmin && (
-                <Button
-                  onClick={onAdminClick}
-                  variant="outline"
-                  size="sm"
-                  className="gap-2"
-                >
-                  <Shield className="w-4 h-4" />
-                  Admin
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button variant="ghost" size="icon" className="rounded-full">
+                  <UserIcon className="h-5 w-5" />
                 </Button>
-              )}
-              <Button
-                onClick={handleSignOut}
-                variant="ghost"
-                size="sm"
-                className="gap-2"
-              >
-                <LogOut className="w-4 h-4" />
-                Sign Out
-              </Button>
-            </>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end" className="w-48">
+                <div className="px-2 py-1.5 text-sm font-medium">
+                  {user.email}
+                </div>
+                <DropdownMenuSeparator />
+                {isAdmin && (
+                  <DropdownMenuItem onClick={onAdminClick}>
+                    <Shield className="mr-2 h-4 w-4" />
+                    Admin Panel
+                  </DropdownMenuItem>
+                )}
+                <DropdownMenuItem onClick={handleSignOut}>
+                  <LogOut className="mr-2 h-4 w-4" />
+                  Sign Out
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
           ) : (
-            <Button
-              onClick={onLoginClick}
-              variant="ghost"
-              size="sm"
-            >
-              Login
+            <Button onClick={onLoginClick} variant="default" size="sm">
+              Sign In
             </Button>
           )}
         </div>
 
-        {/* Mobile Actions */}
+        {/* Mobile Menu */}
         <div className="flex md:hidden items-center gap-2">
           <ThemeToggle />
           <Sheet open={mobileMenuOpen} onOpenChange={setMobileMenuOpen}>
@@ -178,38 +130,20 @@ export const Navigation = ({ user, isAdmin, onAdminClick, onLoginClick }: Naviga
             </SheetTrigger>
             <SheetContent side="right" className="w-[280px]">
               <div className="flex flex-col gap-6 mt-8">
-                {/* Mobile Navigation Links */}
-                <nav className="flex flex-col gap-4">
-                  {navLinks.map((link) => (
-                    <button
-                      key={link.label}
-                      onClick={() => {
-                        if (link.action) {
-                          link.action();
-                        } else if (link.id) {
-                          scrollToSection(link.id);
-                        }
-                      }}
-                      onMouseEnter={() => prefetchRoute(link.prefetchRoute)}
-                      className="text-left text-lg font-medium text-muted-foreground hover:text-foreground transition-colors"
-                    >
-                      {link.label}
-                    </button>
-                  ))}
-                </nav>
+                {isPublicPage && (
+                  <nav className="flex flex-col gap-4">
+                    {publicNavLinks.map((link) => (
+                      <button
+                        key={link.label}
+                        onClick={() => scrollToSection(link.id)}
+                        className="text-left text-lg font-medium text-muted-foreground hover:text-foreground transition-colors"
+                      >
+                        {link.label}
+                      </button>
+                    ))}
+                  </nav>
+                )}
 
-                {/* Mobile CTA */}
-                <Button
-                  onClick={() => {
-                    handleWaitlistClick();
-                  }}
-                  variant="default"
-                  className="w-full"
-                >
-                  Join Waitlist
-                </Button>
-
-                {/* Mobile Auth Buttons */}
                 {user ? (
                   <>
                     {isAdmin && (
@@ -243,10 +177,10 @@ export const Navigation = ({ user, isAdmin, onAdminClick, onLoginClick }: Naviga
                       onLoginClick();
                       setMobileMenuOpen(false);
                     }}
-                    variant="ghost"
+                    variant="default"
                     className="w-full"
                   >
-                    Login
+                    Sign In
                   </Button>
                 )}
               </div>

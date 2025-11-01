@@ -23,7 +23,6 @@ import {
 import * as XLSX from "xlsx";
 
 import { Navigation } from "@/components/Navigation";
-import { WaitlistForm } from "@/components/WaitListForm";
 import { MarkdownRenderer } from "@/components/MarkdownRenderer";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -1209,13 +1208,7 @@ const Scheduler = () => {
 
   const summaryCourses = courseCatalog.slice(0, 6);
   return (
-    <div className="min-h-screen relative overflow-hidden">
-      <div className="fixed inset-0 -z-10">
-        <div className="gradient-orb gradient-orb-1" />
-        <div className="gradient-orb gradient-orb-2" />
-        <div className="gradient-orb gradient-orb-3" />
-      </div>
-
+    <div className="min-h-screen relative overflow-hidden bg-background">
       <Navigation
         user={user}
         isAdmin={isAdmin}
@@ -1223,10 +1216,10 @@ const Scheduler = () => {
         onLoginClick={() => navigate("/")}
       />
 
-      <div className="relative z-10 container mx-auto px-6 pt-24 pb-12">
+      <div className="container mx-auto px-6 pt-24 pb-12">
         <Button
           variant="ghost"
-          className="mb-8 backdrop-blur-sm bg-background/30"
+          className="mb-8"
           onClick={() => navigate("/")}
         >
           <ArrowLeft className="mr-2 h-4 w-4" />
@@ -1235,10 +1228,10 @@ const Scheduler = () => {
 
         <div className="max-w-5xl mx-auto text-center space-y-10 animate-fade-in">
           <div className="inline-block">
-            <h1 className="text-6xl md:text-7xl font-bold bg-gradient-to-r from-primary via-accent to-primary bg-clip-text text-transparent animate-shimmer mb-6 text-glow">
+            <h1 className="text-display-large font-bold text-foreground mb-6">
               AI Course Scheduler
             </h1>
-            <div className="h-1 w-full bg-gradient-to-r from-transparent via-primary to-transparent opacity-50 animate-pulse" />
+            <div className="h-1 w-24 bg-primary mx-auto" />
           </div>
 
           <p className="text-xl md:text-2xl text-muted-foreground max-w-3xl mx-auto leading-relaxed">
@@ -1266,7 +1259,8 @@ const Scheduler = () => {
             <CardFooter className="flex flex-wrap gap-4">
               <Button
                 size="lg"
-                className="bg-gradient-to-r from-primary to-accent text-primary-foreground shadow-lg"
+                variant="default"
+                className="shadow-[var(--elevation-2)]"
                 onClick={handleStart}
               >
                 <Sparkles className="mr-2 h-5 w-5" />
@@ -1548,10 +1542,6 @@ const Scheduler = () => {
             />
           </div>
         )}
-
-        <div id="waitlist" className="mt-16 max-w-md mx-auto">
-          <WaitlistForm />
-        </div>
       </div>
     </div>
   );

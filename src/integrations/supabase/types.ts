@@ -274,6 +274,30 @@ export type Database = {
           },
         ]
       }
+      newsletter_signups: {
+        Row: {
+          email: string
+          full_name: string | null
+          id: string
+          subscribed_at: string | null
+          unsubscribed_at: string | null
+        }
+        Insert: {
+          email: string
+          full_name?: string | null
+          id?: string
+          subscribed_at?: string | null
+          unsubscribed_at?: string | null
+        }
+        Update: {
+          email?: string
+          full_name?: string | null
+          id?: string
+          subscribed_at?: string | null
+          unsubscribed_at?: string | null
+        }
+        Relationships: []
+      }
       notes: {
         Row: {
           character_count: number | null

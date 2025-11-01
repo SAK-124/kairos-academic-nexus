@@ -3,6 +3,7 @@ import { Button } from "@/components/ui/button";
 import { ArrowRight } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useNavigate } from "react-router-dom";
+import { useAuth } from "@/hooks/useAuth";
 import {
   Tooltip,
   TooltipContent,
@@ -54,6 +55,7 @@ export const HeroSection = ({ onCTAClick }: HeroSectionProps) => {
   const [buttonMapping, setButtonMapping] = useState<ButtonMapping>(DEFAULT_BUTTON_MAPPING);
   const [isLoaded, setIsLoaded] = useState(false);
   const navigate = useNavigate();
+  const { user } = useAuth();
 
   useEffect(() => {
     loadContent();
@@ -145,14 +147,18 @@ export const HeroSection = ({ onCTAClick }: HeroSectionProps) => {
         <div className="mt-8 flex flex-col sm:flex-row items-center justify-center gap-6">
           <Button
             onClick={() => {
-              const section = document.getElementById("waitlist");
-              section?.scrollIntoView({ behavior: "smooth" });
+              if (user) {
+                navigate('/dashboard');
+              } else {
+                const section = document.getElementById("newsletter");
+                section?.scrollIntoView({ behavior: "smooth" });
+              }
             }}
             size="lg"
             variant="default"
             className="h-14 px-8 text-lg shadow-[var(--elevation-2)] hover:shadow-[var(--elevation-3)] transition-shadow"
           >
-            Join Waitlist!
+            {user ? "Go to Dashboard" : "Join Newsletter"}
           </Button>
           {isLoaded ? (
             <TooltipProvider>

@@ -13,7 +13,7 @@ import { AuthModal } from "@/components/AuthModal";
 import { AdminPanel } from "@/components/admin/AdminPanel";
 import { AISearchBar } from "@/components/AISearchBar";
 import { Navigation } from "@/components/Navigation";
-import { WaitlistSection } from "@/components/landing/WaitlistSection";
+import { NewsletterSection } from "@/components/landing/NewsletterSection";
 import { FooterSection } from "@/components/landing/FooterSection";
 import { useAuth } from "@/hooks/useAuth";
 import { useAdminStatus } from "@/hooks/useAdminStatus";
@@ -76,7 +76,7 @@ const Index = () => {
         <TestimonialSection />
         <FAQSection />
         <PricingSection />
-        <WaitlistSection />
+        <NewsletterSection />
         <FooterSection />
       </div>
 

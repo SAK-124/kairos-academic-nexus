@@ -74,7 +74,7 @@ export const AISearchBar = () => {
       {!isExpanded ? (
         <button
           onClick={() => setIsExpanded(true)}
-          className="fixed bottom-6 right-6 z-40 p-4 bg-gradient-to-r from-primary to-accent text-primary-foreground rounded-full shadow-lg hover:scale-110 transition-all duration-300 animate-float"
+          className="fixed bottom-6 right-6 z-40 p-4 bg-primary text-primary-foreground rounded-full shadow-[var(--elevation-6)] hover:shadow-[var(--elevation-4)] hover:scale-105 transition-all duration-300"
           aria-label="Open AI chat"
         >
           <MessageCircle className="w-6 h-6" />

@@ -144,7 +144,7 @@ export const WaitlistForm = () => {
         <Button
           type="submit"
           size="lg"
-          className="w-full bg-gradient-to-r from-primary to-accent hover:scale-105 transition-all duration-300"
+          className="w-full"
           disabled={isSubmitting}
         >
           {isSubmitting ? "Joining..." : (

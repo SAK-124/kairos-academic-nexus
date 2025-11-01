@@ -14,6 +14,26 @@ export default {
       },
     },
     extend: {
+      fontFamily: {
+        sans: ['Inter', 'system-ui', '-apple-system', 'sans-serif'],
+      },
+      fontSize: {
+        'display-large': ['57px', { lineHeight: '64px', fontWeight: '400' }],
+        'display-medium': ['45px', { lineHeight: '52px', fontWeight: '400' }],
+        'display-small': ['36px', { lineHeight: '44px', fontWeight: '400' }],
+        'headline-large': ['32px', { lineHeight: '40px', fontWeight: '400' }],
+        'headline-medium': ['28px', { lineHeight: '36px', fontWeight: '400' }],
+        'headline-small': ['24px', { lineHeight: '32px', fontWeight: '400' }],
+        'title-large': ['22px', { lineHeight: '28px', fontWeight: '400' }],
+        'title-medium': ['16px', { lineHeight: '24px', fontWeight: '500' }],
+        'title-small': ['14px', { lineHeight: '20px', fontWeight: '500' }],
+        'body-large': ['16px', { lineHeight: '24px', fontWeight: '400' }],
+        'body-medium': ['14px', { lineHeight: '20px', fontWeight: '400' }],
+        'body-small': ['12px', { lineHeight: '16px', fontWeight: '400' }],
+        'label-large': ['14px', { lineHeight: '20px', fontWeight: '500' }],
+        'label-medium': ['12px', { lineHeight: '16px', fontWeight: '500' }],
+        'label-small': ['11px', { lineHeight: '16px', fontWeight: '500' }],
+      },
       colors: {
         border: "hsl(var(--border))",
         input: "hsl(var(--input))",

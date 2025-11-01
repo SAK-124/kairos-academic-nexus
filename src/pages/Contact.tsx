@@ -79,9 +79,6 @@ const Contact = () => {
 
   return (
     <div className="min-h-screen bg-background">
-      <div className="gradient-orb gradient-orb-1" />
-      <div className="gradient-orb gradient-orb-2" />
-      <div className="gradient-orb gradient-orb-3" />
       
       <Navigation 
         user={user} 
@@ -93,7 +90,7 @@ const Contact = () => {
       <main className="relative z-10 pt-24 pb-16 px-4">
         <div className="max-w-2xl mx-auto">
           <div className="bg-card/80 backdrop-blur-xl rounded-3xl border shadow-2xl p-8 md:p-12">
-            <h1 className="text-4xl md:text-5xl font-bold mb-4 bg-gradient-to-r from-primary to-accent bg-clip-text text-transparent">
+            <h1 className="text-4xl md:text-5xl font-bold mb-4 text-foreground">
               Contact Us
             </h1>
             <p className="text-muted-foreground mb-8">

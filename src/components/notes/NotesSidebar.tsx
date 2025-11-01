@@ -224,7 +224,7 @@ export function NotesSidebar({ onCreateNote, onCourseClick, onFolderClick, onVie
         <div className="p-4">
           <Button
             onClick={onCreateNote}
-            className="w-full bg-gradient-to-r from-primary to-accent"
+            className="w-full"
           >
             <Plus className="w-4 h-4 mr-2" />
             New Note

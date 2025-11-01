@@ -32,7 +32,7 @@ const AppRoutes = () => (
 );
 
 const App = () => (
-  <ThemeProvider attribute="class" defaultTheme="system" enableSystem>
+  <ThemeProvider attribute="class" defaultTheme="system" enableSystem disableTransitionOnChange>
     <TooltipProvider>
       <BrowserRouter>
         <AppRoutes />

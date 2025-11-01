@@ -880,7 +880,8 @@ const ScheduleGrid = ({
   bounds: { start: number; end: number };
   duration: number;
 }) => {
-  const availableDays = computeAvailableDays(schedule);
+  // Show all 7 days of the week
+  const availableDays = DAY_OPTIONS;
   
   // Generate time labels for left axis (hourly increments)
   const timeLabels: string[] = [];
@@ -966,64 +967,60 @@ const ScheduleGrid = ({
                     <HoverCardTrigger asChild>
                       <div
                         className={cn(
-                          "absolute inset-x-3 rounded-xl transition-all duration-200 cursor-pointer group overflow-hidden",
-                          "bg-gradient-to-br from-primary/20 to-primary/10 backdrop-blur-sm",
-                          "border-2 shadow-[var(--elevation-2)]",
-                          "hover:shadow-[var(--elevation-4)] hover:scale-[1.03] hover:z-10",
+                          "absolute inset-x-3 rounded-lg transition-all duration-200 cursor-pointer group overflow-hidden",
+                          "bg-surface-container/80 backdrop-blur-sm",
+                          "border shadow-sm",
+                          "hover:shadow-md hover:scale-[1.02] hover:z-10",
                           block.conflict
-                            ? "border-destructive/70 border-l-[6px] border-l-destructive bg-destructive/10"
-                            : "border-primary/40",
+                            ? "border-destructive/70 border-l-4 border-l-destructive bg-destructive/10"
+                            : "border-border/40",
                           isVeryCompact ? "p-2" : isCompact ? "p-3" : "p-4"
                         )}
                         style={{ top: `${top}%`, height: `${height}%` }}
                       >
                         {/* Conflict indicator */}
                         {block.conflict && (
-                          <div className="absolute top-3 left-3 w-3 h-3 rounded-full bg-destructive animate-pulse shadow-lg" />
+                          <div className="absolute top-2 left-2 w-2 h-2 rounded-full bg-destructive animate-pulse" />
                         )}
 
-                        <div className="h-full flex flex-col justify-between">
-                          <div className="flex-1 min-h-0">
-                            {/* Course code - top right */}
-                            <div className="absolute top-2 right-2">
-                              <Badge 
-                                variant={block.conflict ? "destructive" : "default"}
-                                className="text-xs px-2 py-0.5 font-bold shadow-sm"
-                              >
-                                {block.code}
-                              </Badge>
-                            </div>
-
-                            {/* Course title */}
-                            <div className={cn("pr-20", isVeryCompact ? "mb-0" : "mb-2")}>
-                              <p className={cn(
-                                "font-bold leading-tight",
-                                isVeryCompact ? "text-xs line-clamp-1" : isCompact ? "text-sm line-clamp-2" : "text-base line-clamp-3"
-                              )}>
-                                {block.title || block.code}
-                              </p>
-                            </div>
-
-                            {/* Time - always show */}
+                        <div className="h-full flex flex-col">
+                          {/* Course title and code */}
+                          <div className={cn("flex-1 min-h-0", isVeryCompact ? "mb-0" : "mb-1")}>
+                            <p className={cn(
+                              "font-bold leading-tight",
+                              isVeryCompact ? "text-xs line-clamp-1" : isCompact ? "text-sm line-clamp-2" : "text-base line-clamp-2"
+                            )}>
+                              {block.code}
+                            </p>
                             {!isVeryCompact && (
                               <p className={cn(
-                                "font-mono font-semibold text-muted-foreground",
-                                isCompact ? "text-xs" : "text-sm"
+                                "font-medium text-muted-foreground leading-tight mt-0.5",
+                                isCompact ? "text-xs line-clamp-1" : "text-sm line-clamp-1"
                               )}>
-                                {block.startTime} - {block.endTime}
+                                {block.title}
                               </p>
                             )}
-
-                            {/* Location (only if enough space) */}
-                            {!isCompact && block.location && (
-                              <div className="mt-2 flex items-center gap-1.5">
-                                <MapPin className="h-3.5 w-3.5 flex-shrink-0 text-muted-foreground" />
-                                <p className="text-xs font-medium text-muted-foreground line-clamp-1">
-                                  {block.location}
-                                </p>
-                              </div>
-                            )}
                           </div>
+
+                          {/* Time - always show */}
+                          {!isVeryCompact && (
+                            <p className={cn(
+                              "font-mono font-semibold text-muted-foreground",
+                              isCompact ? "text-xs" : "text-sm"
+                            )}>
+                              {block.startTime} - {block.endTime}
+                            </p>
+                          )}
+
+                          {/* Location (only if enough space) */}
+                          {!isCompact && block.location && (
+                            <div className="mt-2 flex items-center gap-1.5">
+                              <MapPin className="h-3.5 w-3.5 flex-shrink-0 text-muted-foreground" />
+                              <p className="text-xs font-medium text-muted-foreground line-clamp-1">
+                                {block.location}
+                              </p>
+                            </div>
+                          )}
                         </div>
                       </div>
                     </HoverCardTrigger>

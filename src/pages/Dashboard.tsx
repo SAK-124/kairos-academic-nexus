@@ -123,47 +123,52 @@ export default function Dashboard() {
             <ArrowRight className="h-4 w-4" />
           </Button>
         </div>
-        <Card className="bg-surface-container">
-          <CardContent className="pt-6">
-            {savedSchedules.length > 0 ? (
-              <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-                {savedSchedules.map((schedule) => (
-                  <Card
-                    key={schedule.id}
-                    className="bg-background/50 hover:shadow-lg transition-shadow cursor-pointer"
-                    onClick={() => navigate(`/scheduler/${schedule.id}`)}
-                  >
-                    <CardHeader className="pb-3">
-                      <div className="flex items-start justify-between gap-2">
-                        <div className="flex items-center gap-2">
-                          <CalendarDays className="h-5 w-5 text-primary" />
-                          <CardTitle className="text-base">{schedule.schedule_name}</CardTitle>
-                        </div>
+        {savedSchedules.length > 0 ? (
+          <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
+            {savedSchedules.map((schedule) => (
+              <Card
+                key={schedule.id}
+                className="bg-surface-container hover:shadow-lg transition-all cursor-pointer overflow-hidden"
+                onClick={() => navigate(`/scheduler/${schedule.id}`)}
+              >
+                <CardHeader className="pb-3">
+                  <div className="flex items-start justify-between gap-2">
+                    <div className="flex items-center gap-2">
+                      <CalendarDays className="h-5 w-5 text-primary" />
+                      <CardTitle className="text-base">{schedule.schedule_name}</CardTitle>
+                    </div>
+                  </div>
+                  <CardDescription className="text-xs">
+                    {new Date(schedule.created_at).toLocaleDateString()}
+                  </CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <div className="space-y-3">
+                    <div className="grid grid-cols-3 gap-2 text-xs">
+                      <div className="text-center">
+                        <div className="font-semibold text-primary">{schedule.summary.totalCredits}</div>
+                        <div className="text-muted-foreground">Credits</div>
                       </div>
-                      <CardDescription className="text-xs">
-                        {new Date(schedule.created_at).toLocaleDateString()}
-                      </CardDescription>
-                    </CardHeader>
-                    <CardContent>
-                      <div className="space-y-2">
-                        <div className="flex items-center justify-between text-sm">
-                          <span className="text-muted-foreground">Credits</span>
-                          <Badge variant="outline">{schedule.summary.totalCredits}</Badge>
-                        </div>
-                        <div className="flex items-center justify-between text-sm">
-                          <span className="text-muted-foreground">Meetings/week</span>
-                          <Badge variant="outline">{schedule.summary.totalMeetings}</Badge>
-                        </div>
-                        <div className="flex items-center justify-between text-sm">
-                          <span className="text-muted-foreground">Avg hours/day</span>
-                          <Badge variant="outline">{schedule.summary.averageDailyHours}h</Badge>
-                        </div>
+                      <div className="text-center">
+                        <div className="font-semibold text-primary">{schedule.summary.totalMeetings}</div>
+                        <div className="text-muted-foreground">Classes</div>
                       </div>
-                    </CardContent>
-                  </Card>
-                ))}
-              </div>
-            ) : (
+                      <div className="text-center">
+                        <div className="font-semibold text-primary">{schedule.summary.averageDailyHours}h</div>
+                        <div className="text-muted-foreground">Avg/day</div>
+                      </div>
+                    </div>
+                    <Button variant="outline" size="sm" className="w-full mt-2">
+                      View Schedule
+                    </Button>
+                  </div>
+                </CardContent>
+              </Card>
+            ))}
+          </div>
+        ) : (
+          <Card className="bg-surface-container">
+            <CardContent className="pt-6">
               <div className="text-center py-8">
                 <CalendarDays className="h-12 w-12 mx-auto mb-3 text-muted-foreground" />
                 <p className="text-muted-foreground mb-4">No schedules yet</p>
@@ -171,9 +176,9 @@ export default function Dashboard() {
                   Create Your First Schedule
                 </Button>
               </div>
-            )}
-          </CardContent>
-        </Card>
+            </CardContent>
+          </Card>
+        )}
       </section>
 
       {/* Recent Notes Section */}

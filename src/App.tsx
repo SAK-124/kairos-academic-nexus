@@ -74,6 +74,7 @@ const AppRoutes = () => {
             <Route path="/notes" element={<AuthenticatedLayout><Notes /></AuthenticatedLayout>} />
             <Route path="/notes/:id" element={<AuthenticatedLayout><NoteEditor /></AuthenticatedLayout>} />
             <Route path="/scheduler" element={<AuthenticatedLayout><Scheduler /></AuthenticatedLayout>} />
+            <Route path="/scheduler/:scheduleId" element={<AuthenticatedLayout><Scheduler /></AuthenticatedLayout>} />
             <Route path="/settings" element={<Navigate to="/dashboard" replace />} />
           </>
         ) : (

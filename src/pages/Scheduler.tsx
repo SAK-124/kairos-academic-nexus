@@ -998,6 +998,7 @@ const ScheduleGrid = ({
 };
 const Scheduler = () => {
   const navigate = useNavigate();
+  const { scheduleId } = useParams<{ scheduleId: string }>();
   const { toast } = useToast();
   const { user, loading: authLoading } = useAuth();
   const isAdmin = useAdminStatus(user);
@@ -1018,6 +1019,80 @@ const Scheduler = () => {
   const [acceptedNotes, setAcceptedNotes] = useState<string>("");
 
   const chatScrollRef = useRef<HTMLDivElement>(null);
+
+  // Load saved schedule when scheduleId is present
+  useEffect(() => {
+    if (!scheduleId || !user) return;
+
+    const loadSavedSchedule = async () => {
+      try {
+        // Fetch the saved schedule
+        const { data: savedSchedule, error } = await supabase
+          .from('saved_schedules')
+          .select('*')
+          .eq('id', scheduleId)
+          .eq('user_id', user.id)
+          .single();
+
+        if (error) throw error;
+        if (!savedSchedule) return;
+
+        // Fetch the schedule courses
+        const { data: courses, error: coursesError } = await supabase
+          .from('schedule_courses')
+          .select('*')
+          .eq('schedule_id', scheduleId)
+          .order('display_order', { ascending: true });
+
+        if (coursesError) throw coursesError;
+
+        // Transform courses to CourseInput format
+        const transformedCourses = courses.map(course => ({
+          id: course.id,
+          code: course.course_code,
+          title: course.course_title,
+          classNumber: course.class_number || "",
+          days: course.days,
+          startTime: course.start_time,
+          endTime: course.end_time,
+          location: course.location || "",
+          instructor: course.instructor || "",
+          credits: Number(course.credits) || 3,
+          notes: course.notes,
+        }));
+
+        // Build the schedule
+        const schedule = buildScheduleFromCourses(
+          transformedCourses,
+          DEFAULT_PREFERENCES,
+        );
+
+        // Update state to display the schedule
+        setAcceptedSchedule(schedule);
+        setAcceptedNotes(savedSchedule.schedule_name || "");
+        
+        // Set the candidate proposal so user can continue chatting
+        setCandidateProposal({
+          courses: transformedCourses,
+          notes: savedSchedule.notes,
+        });
+
+        // Set the course catalog for AI context
+        setCourseCatalog(transformedCourses);
+        setStep("chat");
+
+      } catch (error) {
+        console.error('Error loading saved schedule:', error);
+        toast({
+          title: "Failed to load schedule",
+          description: error instanceof Error ? error.message : "Unknown error",
+          variant: "destructive",
+        });
+      }
+    };
+
+    loadSavedSchedule();
+  }, [scheduleId, user, toast]);
 
   const candidatePreview = useMemo(() => {
     if (!candidateProposal?.courses.length) return null;
@@ -1305,14 +1380,24 @@ const Scheduler = () => {
       />
 
       <div className="container mx-auto px-6 pt-24 pb-12">
-        <Button
-          variant="ghost"
-          className="mb-8"
-          onClick={() => navigate("/")}
-        >
-          <ArrowLeft className="mr-2 h-4 w-4" />
-          Back to Home
-        </Button>
+        <div className="flex items-center gap-3 mb-8">
+          <Button
+            variant="ghost"
+            onClick={() => navigate(scheduleId ? "/dashboard" : "/")}
+          >
+            <ArrowLeft className="mr-2 h-4 w-4" />
+            {scheduleId ? "Back to Dashboard" : "Back to Home"}
+          </Button>
+        </div>
+
+        {scheduleId && acceptedSchedule && (
+          <div className="mb-6 p-4 bg-primary/10 border border-primary/20 rounded-lg max-w-5xl mx-auto">
+            <p className="text-sm font-medium flex items-center gap-2">
+              <Calendar className="h-4 w-4 text-primary" />
+              📅 Viewing saved schedule: {acceptedNotes || "Unnamed Schedule"}
+            </p>
+          </div>
+        )}
 
         <div className="max-w-5xl mx-auto text-center space-y-10 animate-fade-in">
           <div className="inline-block">

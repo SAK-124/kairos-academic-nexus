@@ -131,7 +131,7 @@ export default function Dashboard() {
                   <Card
                     key={schedule.id}
                     className="bg-background/50 hover:shadow-lg transition-shadow cursor-pointer"
-                    onClick={() => navigate('/scheduler')}
+                    onClick={() => navigate(`/scheduler/${schedule.id}`)}
                   >
                     <CardHeader className="pb-3">
                       <div className="flex items-start justify-between gap-2">

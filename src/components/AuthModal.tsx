@@ -4,7 +4,7 @@ import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
-import { Mail, Loader2, CheckCircle } from "lucide-react";
+import { Mail, Loader2, CheckCircle, Fingerprint } from "lucide-react";
 import { Separator } from "@/components/ui/separator";
 
 interface AuthModalProps {
@@ -80,24 +80,94 @@ export const AuthModal = ({ open, onOpenChange, onSuccess, onClose }: AuthModalP
   const handleGoogleSignIn = async () => {
     setIsLoading(true);
     try {
-      const { error } = await supabase.auth.signInWithOAuth({
+      const { data, error } = await supabase.auth.signInWithOAuth({
         provider: 'google',
         options: {
           redirectTo: `${window.location.origin}/`,
+          queryParams: {
+            access_type: 'offline',
+            prompt: 'consent',
+          }
         }
       });
 
       if (error) {
+        console.error('Google auth error:', error);
         toast({
           title: "Google sign-in failed",
-          description: error.message,
+          description: error.message || "Please ensure Google OAuth is configured in your backend settings",
           variant: "destructive",
         });
+        setIsLoading(false);
       }
-    } catch (error) {
+      // Don't set loading to false here - the page will redirect
+    } catch (error: any) {
+      console.error('Google auth exception:', error);
       toast({
         title: "Authentication failed",
-        description: "Please try again",
+        description: error?.message || "Please try again",
+        variant: "destructive",
+      });
+      setIsLoading(false);
+    }
+  };
+
+  const handlePasskeySignIn = async () => {
+    if (!window.PublicKeyCredential) {
+      toast({
+        title: "Passkeys not supported",
+        description: "Your browser doesn't support passkeys",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    setIsLoading(true);
+    try {
+      // Get challenge from server
+      const { data: challengeData, error: challengeError } = await supabase.functions.invoke('webauthn-challenge', {
+        body: { type: 'login' }
+      });
+
+      if (challengeError) throw challengeError;
+
+      // Request credential from browser
+      const credential = await navigator.credentials.get({
+        publicKey: {
+          challenge: Uint8Array.from(atob(challengeData.challenge), c => c.charCodeAt(0)),
+          timeout: 60000,
+          userVerification: 'preferred',
+        }
+      }) as PublicKeyCredential;
+
+      if (!credential) {
+        throw new Error('No credential returned');
+      }
+
+      // Verify with server
+      const response = credential.response as AuthenticatorAssertionResponse;
+      const { error: verifyError } = await supabase.functions.invoke('webauthn-verify', {
+        body: {
+          credentialId: btoa(String.fromCharCode(...new Uint8Array(credential.rawId))),
+          authenticatorData: btoa(String.fromCharCode(...new Uint8Array(response.authenticatorData))),
+          clientDataJSON: btoa(String.fromCharCode(...new Uint8Array(response.clientDataJSON))),
+          signature: btoa(String.fromCharCode(...new Uint8Array(response.signature))),
+        }
+      });
+
+      if (verifyError) throw verifyError;
+
+      toast({
+        title: "Signed in with passkey!",
+        description: "Welcome back",
+      });
+      onSuccess?.();
+      onClose?.();
+    } catch (error: any) {
+      console.error('Passkey error:', error);
+      toast({
+        title: "Passkey sign-in failed",
+        description: error?.message || "Please try another method",
         variant: "destructive",
       });
     } finally {
@@ -215,21 +285,36 @@ export const AuthModal = ({ open, onOpenChange, onSuccess, onClose }: AuthModalP
         
         {!emailSent ? (
           <>
-            <Button
-              type="button"
-              variant="outline"
-              onClick={handleGoogleSignIn}
-              disabled={isLoading}
-              className="w-full h-12 mb-4"
-            >
-              <svg className="w-5 h-5 mr-2" viewBox="0 0 24 24">
-                <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/>
-                <path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/>
-                <path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z"/>
-                <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"/>
-              </svg>
-              Continue with Google
-            </Button>
+            <div className="grid grid-cols-1 gap-2 mb-4">
+              <Button
+                type="button"
+                variant="outline"
+                onClick={handleGoogleSignIn}
+                disabled={isLoading}
+                className="w-full h-12"
+              >
+                <svg className="w-5 h-5 mr-2" viewBox="0 0 24 24">
+                  <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/>
+                  <path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/>
+                  <path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z"/>
+                  <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"/>
+                </svg>
+                Continue with Google
+              </Button>
+              
+              {window.PublicKeyCredential && (
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={handlePasskeySignIn}
+                  disabled={isLoading}
+                  className="w-full h-12"
+                >
+                  <Fingerprint className="w-5 h-5 mr-2" />
+                  Sign in with Passkey
+                </Button>
+              )}
+            </div>
             
             <div className="relative mb-4">
               <Separator />

@@ -895,32 +895,34 @@ const ScheduleGrid = ({
   return (
     <div className="w-full overflow-hidden rounded-2xl bg-surface-container-low shadow-[var(--elevation-3)] border border-border/50">
       {/* Header with day names and stats */}
-      <div className="flex border-b-2 border-border/40 bg-surface-container">
-        <div className="w-24 flex-shrink-0 bg-surface-container border-r-2 border-border/40" />
-        {availableDays.map((day) => {
-          const blocks = schedule.blocksByDay[day] ?? [];
-          const hasConflicts = blocks.some((b) => b.conflict);
-          
-          return (
-            <div key={day} className="flex-1 min-w-[200px] px-6 py-4 text-center border-r border-border/20 last:border-r-0">
-              <div className="flex flex-col items-center gap-2">
-                <h3 className="font-bold text-base tracking-wide">{day}</h3>
-                <Badge 
-                  variant={blocks.length === 0 ? "secondary" : hasConflicts ? "destructive" : "default"} 
-                  className="text-xs px-3 py-1 font-medium"
-                >
-                  {blocks.length === 0 ? "Free" : `${blocks.length} class${blocks.length > 1 ? "es" : ""}`}
-                </Badge>
+      <div className="border-b-2 border-border/40 bg-surface-container">
+        <div className="grid grid-cols-[6rem_repeat(7,minmax(0,1fr))]">
+          <div className="w-24 h-full bg-surface-container border-r-2 border-border/40" />
+          {availableDays.map((day) => {
+            const blocks = schedule.blocksByDay[day] ?? [];
+            const hasConflicts = blocks.some((b) => b.conflict);
+
+            return (
+              <div key={day} className="px-4 py-4 text-center border-r border-border/20 last:border-r-0">
+                <div className="flex flex-col items-center gap-2">
+                  <h3 className="font-bold text-base tracking-wide">{day}</h3>
+                  <Badge
+                    variant={blocks.length === 0 ? "secondary" : hasConflicts ? "destructive" : "default"}
+                    className="text-xs px-3 py-1 font-medium"
+                  >
+                    {blocks.length === 0 ? "Free" : `${blocks.length} class${blocks.length > 1 ? "es" : ""}`}
+                  </Badge>
+                </div>
               </div>
-            </div>
-          );
-        })}
+            );
+          })}
+        </div>
       </div>
 
-      {/* Calendar body with horizontal scroll */}
-      <div className="flex overflow-x-auto scrollbar-thin scrollbar-track-surface-container scrollbar-thumb-border/60 hover:scrollbar-thumb-primary/40 snap-x snap-mandatory">
-        {/* Time axis (sticky left) */}
-        <div className="w-24 flex-shrink-0 sticky left-0 bg-surface-container z-20 border-r-2 border-border/40">
+      {/* Calendar body with full-width layout */}
+      <div className="grid grid-cols-[6rem_repeat(7,minmax(0,1fr))]">
+        {/* Time axis */}
+        <div className="w-24 border-r-2 border-border/40 bg-surface-container">
           <div className="relative" style={{ height: `${timeLabels.length * 80}px` }}>
             {timeLabels.map((time, idx) => (
               <div
@@ -937,11 +939,11 @@ const ScheduleGrid = ({
         {/* Day columns */}
         {availableDays.map((day) => {
           const blocks = schedule.blocksByDay[day] ?? [];
-          
+
           return (
-            <div 
-              key={day} 
-              className="flex-1 min-w-[200px] relative border-r border-border/20 last:border-r-0 snap-center bg-background/30"
+            <div
+              key={day}
+              className="relative border-r border-border/20 last:border-r-0 bg-background/30"
               style={{ height: `${timeLabels.length * 80}px` }}
             >
               {/* Horizontal gridlines */}
@@ -967,13 +969,13 @@ const ScheduleGrid = ({
                     <HoverCardTrigger asChild>
                       <div
                         className={cn(
-                          "absolute inset-x-3 rounded-lg transition-all duration-200 cursor-pointer group overflow-hidden",
-                          "bg-surface-container/80 backdrop-blur-sm",
-                          "border shadow-sm",
-                          "hover:shadow-md hover:scale-[1.02] hover:z-10",
+                          "absolute inset-x-3 rounded-xl transition-all duration-200 cursor-pointer group overflow-hidden",
+                          "bg-primary/15 backdrop-blur-sm text-primary-foreground",
+                          "border border-primary/30 shadow-sm",
+                          "hover:shadow-lg hover:scale-[1.02] hover:z-10",
                           block.conflict
-                            ? "border-destructive/70 border-l-4 border-l-destructive bg-destructive/10"
-                            : "border-border/40",
+                            ? "border-destructive/70 border-l-4 border-l-destructive bg-destructive/15 text-destructive-foreground"
+                            : "",
                           isVeryCompact ? "p-2" : isCompact ? "p-3" : "p-4"
                         )}
                         style={{ top: `${top}%`, height: `${height}%` }}

@@ -7,7 +7,6 @@ import { NoteCard } from '@/components/notes/NoteCard';
 import { NotesSidebar, type StudyMaterial } from '@/components/notes/NotesSidebar';
 import { SearchBar } from '@/components/notes/SearchBar';
 import { useToast } from '@/hooks/use-toast';
-import { AnimatedLogo } from '@/components/AnimatedLogo';
 import { FlashcardViewer } from '@/components/notes/FlashcardViewer';
 import { QuizViewer } from '@/components/notes/QuizViewer';
 import { useNotesWorkspace } from '@/hooks/useNotesWorkspace';
@@ -230,13 +229,6 @@ export default function Notes() {
 
   return (
     <div className="min-h-screen bg-background flex flex-col">
-      <div className="border-b border-border/40 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
-        <div className="max-w-7xl mx-auto px-6 py-4 flex items-center gap-4">
-          <AnimatedLogo onClick={() => navigate('/')} />
-          <h1 className="text-2xl font-bold">My Notes</h1>
-        </div>
-      </div>
-
       <div className="flex flex-1">
         <NotesSidebar
           onCreateNote={handleCreateNote}

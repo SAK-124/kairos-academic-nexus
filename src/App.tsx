@@ -1,4 +1,4 @@
-import { Suspense, lazy } from "react";
+import { Suspense, lazy, useState } from "react";
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import { ThemeProvider } from "next-themes";
 import { TooltipProvider } from "@/components/ui/tooltip";
@@ -6,6 +6,9 @@ import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { SidebarProvider, SidebarTrigger } from "@/components/ui/sidebar";
 import { AppSidebar } from "@/components/AppSidebar";
+import { ThemeToggle } from "@/components/ThemeToggle";
+import { UserMenu } from "@/components/UserMenu";
+import { AdminPanel } from "@/components/admin/AdminPanel";
 import { useAuth } from "@/hooks/useAuth";
 
 const Index = lazy(() => import("./pages/Index"));
@@ -21,18 +24,32 @@ const NotFound = lazy(() => import("./pages/NotFound"));
 const suspenseFallback = <div className="p-4 text-sm text-muted-foreground">Loading…</div>;
 
 const AuthenticatedLayout = ({ children }: { children: React.ReactNode }) => {
+  const [showAdmin, setShowAdmin] = useState(false);
+
   return (
-    <SidebarProvider>
-      <div className="min-h-screen flex w-full">
-        <AppSidebar />
-        <div className="flex-1 flex flex-col">
-          <header className="h-12 flex items-center border-b px-4 bg-surface">
-            <SidebarTrigger />
-          </header>
-          <main className="flex-1">{children}</main>
+    <>
+      <SidebarProvider>
+        <div className="min-h-screen flex w-full">
+          <AppSidebar />
+          <div className="flex-1 flex flex-col min-w-0">
+            <header className="h-14 flex items-center justify-between border-b px-4 bg-surface-container shadow-[var(--elevation-1)]">
+              <div className="flex items-center gap-3">
+                <SidebarTrigger />
+                <div className="hidden sm:block">
+                  <h1 className="text-lg font-semibold text-foreground">Kairos</h1>
+                </div>
+              </div>
+              <div className="flex items-center gap-2">
+                <ThemeToggle />
+                <UserMenu onAdminClick={() => setShowAdmin(true)} />
+              </div>
+            </header>
+            <main className="flex-1 overflow-auto">{children}</main>
+          </div>
         </div>
-      </div>
-    </SidebarProvider>
+      </SidebarProvider>
+      {showAdmin && <AdminPanel onClose={() => setShowAdmin(false)} />}
+    </>
   );
 };
 
@@ -57,12 +74,14 @@ const AppRoutes = () => {
             <Route path="/notes" element={<AuthenticatedLayout><Notes /></AuthenticatedLayout>} />
             <Route path="/notes/:id" element={<AuthenticatedLayout><NoteEditor /></AuthenticatedLayout>} />
             <Route path="/scheduler" element={<AuthenticatedLayout><Scheduler /></AuthenticatedLayout>} />
+            <Route path="/settings" element={<Navigate to="/dashboard" replace />} />
           </>
         ) : (
           <>
             <Route path="/dashboard" element={<Navigate to="/" replace />} />
             <Route path="/notes" element={<Navigate to="/" replace />} />
             <Route path="/scheduler" element={<Navigate to="/" replace />} />
+            <Route path="/settings" element={<Navigate to="/" replace />} />
           </>
         )}
         

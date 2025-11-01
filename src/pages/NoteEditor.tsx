@@ -6,7 +6,6 @@ import { ArrowLeft, Star, Loader2 } from 'lucide-react';
 import { TipTapEditor } from '@/components/notes/editor/TipTapEditor';
 import { AIAssistantPanel } from '@/components/notes/editor/AIAssistantPanel';
 import { useToast } from '@/hooks/use-toast';
-import { AnimatedLogo } from '@/components/AnimatedLogo';
 import { FlashcardViewer } from '@/components/notes/FlashcardViewer';
 import { QuizViewer } from '@/components/notes/QuizViewer';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
@@ -191,62 +190,57 @@ export default function NoteEditor() {
 
   return (
     <div className="min-h-screen bg-background">
-      <div className="border-b border-border/40 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
-        <div className="max-w-7xl mx-auto px-6 py-4">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-4 flex-1">
-              <AnimatedLogo onClick={() => navigate('/')} />
-              <Button
-                variant="ghost"
-                size="icon"
-                onClick={() => navigate('/notes')}
-              >
-                <ArrowLeft className="w-5 h-5" />
-              </Button>
-              <input
-                type="text"
-                value={title}
-                onChange={(e) => handleTitleChange(e.target.value)}
-                className="text-2xl font-semibold bg-transparent border-none outline-none flex-1"
-                placeholder="Untitled Note"
+      <div className="border-b border-border/40 bg-surface-container p-4">
+        <div className="max-w-7xl mx-auto flex items-center gap-3 flex-wrap">
+          <Button
+            variant="ghost"
+            size="icon"
+            onClick={() => navigate('/notes')}
+          >
+            <ArrowLeft className="w-5 h-5" />
+          </Button>
+          <input
+            type="text"
+            value={title}
+            onChange={(e) => handleTitleChange(e.target.value)}
+            className="text-xl md:text-2xl font-semibold bg-transparent border-none outline-none flex-1 min-w-[200px]"
+            placeholder="Untitled Note"
+          />
+          <div className="flex items-center gap-2 flex-wrap">
+            <Select value={note.course_id || 'none'} onValueChange={handleCourseChange}>
+              <SelectTrigger className="w-32">
+                <SelectValue placeholder="Course" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="none">No Course</SelectItem>
+                {courses.map(c => (
+                  <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <Select value={note.folder_id || 'none'} onValueChange={handleFolderChange}>
+              <SelectTrigger className="w-32">
+                <SelectValue placeholder="Folder" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="none">No Folder</SelectItem>
+                {folders.map(f => (
+                  <SelectItem key={f.id} value={f.id}>{f.name}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <span className="text-sm text-muted-foreground hidden md:inline">
+              {getLastSavedText()}
+            </span>
+            <Button
+              variant="ghost"
+              size="icon"
+              onClick={handleToggleFavorite}
+            >
+              <Star
+                className={`w-5 h-5 ${isFavorite ? 'fill-yellow-400 text-yellow-400' : ''}`}
               />
-            </div>
-            <div className="flex items-center gap-3">
-              <Select value={note.course_id || 'none'} onValueChange={handleCourseChange}>
-                <SelectTrigger className="w-40">
-                  <SelectValue placeholder="Course" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="none">No Course</SelectItem>
-                  {courses.map(c => (
-                    <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-              <Select value={note.folder_id || 'none'} onValueChange={handleFolderChange}>
-                <SelectTrigger className="w-40">
-                  <SelectValue placeholder="Folder" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="none">No Folder</SelectItem>
-                  {folders.map(f => (
-                    <SelectItem key={f.id} value={f.id}>{f.name}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-              <span className="text-sm text-muted-foreground">
-                {getLastSavedText()}
-              </span>
-              <Button
-                variant="ghost"
-                size="icon"
-                onClick={handleToggleFavorite}
-              >
-                <Star
-                  className={`w-5 h-5 ${isFavorite ? 'fill-yellow-400 text-yellow-400' : ''}`}
-                />
-              </Button>
-            </div>
+            </Button>
           </div>
         </div>
       </div>

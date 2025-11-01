@@ -1,4 +1,4 @@
-import { Home, FileText, Calendar, Settings } from "lucide-react";
+import { Home, FileText, Calendar } from "lucide-react";
 import { NavLink } from "react-router-dom";
 import {
   Sidebar,
@@ -9,36 +9,57 @@ import {
   SidebarMenu,
   SidebarMenuButton,
   SidebarMenuItem,
+  SidebarHeader,
+  useSidebar,
 } from "@/components/ui/sidebar";
 
 const appRoutes = [
   { title: "Dashboard", url: "/dashboard", icon: Home },
   { title: "Notes", url: "/notes", icon: FileText },
   { title: "Scheduler", url: "/scheduler", icon: Calendar },
-  { title: "Settings", url: "/settings", icon: Settings },
 ];
 
 export function AppSidebar() {
+  const { state } = useSidebar();
+  const isCollapsed = state === "collapsed";
+
   return (
-    <Sidebar collapsible="icon">
+    <Sidebar 
+      collapsible="icon"
+      className="border-r border-sidebar-border bg-sidebar-background"
+    >
+      <SidebarHeader className="border-b border-sidebar-border p-4">
+        <div className="flex items-center gap-2">
+          {!isCollapsed && (
+            <span className="text-lg font-bold text-sidebar-foreground">Kairos</span>
+          )}
+          {isCollapsed && (
+            <span className="text-lg font-bold text-sidebar-foreground">K</span>
+          )}
+        </div>
+      </SidebarHeader>
       <SidebarContent>
         <SidebarGroup>
-          <SidebarGroupLabel>Application</SidebarGroupLabel>
+          <SidebarGroupLabel className="text-sidebar-foreground/70">
+            Application
+          </SidebarGroupLabel>
           <SidebarGroupContent>
             <SidebarMenu>
               {appRoutes.map((route) => (
                 <SidebarMenuItem key={route.title}>
-                  <SidebarMenuButton asChild>
+                  <SidebarMenuButton asChild tooltip={route.title}>
                     <NavLink
                       to={route.url}
                       end
                       className={({ isActive }) =>
-                        isActive
-                          ? "bg-muted text-primary font-medium"
-                          : "hover:bg-muted/50"
+                        `transition-all duration-200 ${
+                          isActive
+                            ? "bg-sidebar-accent text-sidebar-accent-foreground font-medium"
+                            : "text-sidebar-foreground hover:bg-sidebar-accent/50 hover:text-sidebar-accent-foreground"
+                        }`
                       }
                     >
-                      <route.icon className="h-4 w-4" />
+                      <route.icon className="h-5 w-5" />
                       <span>{route.title}</span>
                     </NavLink>
                   </SidebarMenuButton>

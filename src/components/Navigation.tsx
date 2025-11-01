@@ -27,7 +27,14 @@ export const Navigation = ({ user, isAdmin, onAdminClick, onLoginClick }: Naviga
   const location = useLocation();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
-  const isPublicPage = location.pathname === '/';
+  // Only render on public pages
+  const publicRoutes = ['/', '/privacy', '/terms', '/contact'];
+  const isPublicPage = publicRoutes.includes(location.pathname);
+
+  // Don't render on authenticated pages (they have their own header)
+  if (!isPublicPage) {
+    return null;
+  }
 
   const handleSignOut = async () => {
     const { error } = await supabase.auth.signOut();

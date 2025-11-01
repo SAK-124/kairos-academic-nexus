@@ -21,6 +21,7 @@ import {
   Upload,
   Edit2,
   Save,
+  MapPin,
 } from "lucide-react";
 import * as XLSX from "xlsx";
 
@@ -880,119 +881,176 @@ const ScheduleGrid = ({
   duration: number;
 }) => {
   const availableDays = computeAvailableDays(schedule);
+  
+  // Generate time labels for left axis (hourly increments)
+  const timeLabels: string[] = [];
+  const startHour = Math.floor(bounds.start / 60);
+  const endHour = Math.ceil(bounds.end / 60);
+  
+  for (let hour = startHour; hour <= endHour; hour++) {
+    timeLabels.push(formatMinutesToTime(hour * 60));
+  }
 
   return (
-    <div className="grid gap-3 grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-7">
-      {availableDays.map(day => {
-        const blocks = schedule.blocksByDay[day] ?? [];
-
-        return (
-          <Card key={day} className="bg-surface-container/50 border border-primary/10 hover:shadow-lg transition-shadow">
-            <CardHeader className="pb-3 text-left">
-              <CardTitle className="flex items-center gap-2 text-base">
-                <Calendar className="h-4 w-4 text-primary" /> {day}
-              </CardTitle>
-              <CardDescription className="text-xs">
-                {blocks.length
-                  ? `${blocks.length} class${blocks.length === 1 ? "" : "es"}`
-                  : "Free day"}
-              </CardDescription>
-            </CardHeader>
-            <CardContent className="relative">
-              <div className="relative h-[28rem] overflow-hidden rounded-lg bg-background/30">
-                <div className="absolute inset-0 border-l-2 border-primary/10">
-                  {Array.from({ length: Math.floor(duration / 60) + 2 }).map((_, index) => {
-                    const minuteMark = bounds.start + index * 60;
-                    if (minuteMark > bounds.end) return null;
-                    const top = ((minuteMark - bounds.start) / duration) * 100;
-                    return (
-                      <div
-                        key={`${day}-mark-${index}`}
-                        className="absolute left-0 right-0 border-t border-primary/10"
-                        style={{ top: `${top}%` }}
-                      >
-                        <span className="ml-2 bg-background/90 px-1.5 py-0.5 rounded text-[11px] text-muted-foreground font-medium">
-                          {formatMinutesToTime(minuteMark)}
-                        </span>
-                      </div>
-                    );
-                  })}
-                </div>
-
-                {blocks.map(block => {
-                  const start = timeStringToMinutes(block.startTime);
-                  const end = timeStringToMinutes(block.endTime);
-                  const top = ((start - bounds.start) / duration) * 100;
-                  const height = Math.max(((end - start) / duration) * 100, 15);
-
-                  return (
-                    <HoverCard key={`${block.id}-${day}`}>
-                      <HoverCardTrigger asChild>
-                        <div
-                          className={cn(
-                            "absolute left-3 right-2 rounded-lg border-2 backdrop-blur-sm px-3 py-2 text-left shadow-md hover:shadow-xl transition-all cursor-pointer",
-                            "min-h-[80px] flex flex-col justify-center",
-                            block.conflict
-                              ? "border-destructive/60 bg-gradient-to-br from-destructive/20 to-destructive/10"
-                              : "border-primary/40 bg-gradient-to-br from-primary/20 to-primary/10",
-                          )}
-                          style={{ top: `${top}%`, height: `${height}%` }}
-                        >
-                          <p className="font-bold text-sm leading-tight line-clamp-2 mb-1">
-                            {block.title || block.code}
-                          </p>
-                          <p className="text-xs text-muted-foreground font-medium">
-                            {block.startTime} - {block.endTime}
-                          </p>
-                          {block.conflict && (
-                            <Badge variant="destructive" className="mt-1 text-[10px]">
-                              Conflict
-                            </Badge>
-                          )}
-                        </div>
-                      </HoverCardTrigger>
-                      <HoverCardContent className="w-80" side="right">
-                        <div className="space-y-2">
-                          <h4 className="font-semibold text-base">{block.title}</h4>
-                          <p className="text-sm text-muted-foreground">
-                            {block.code}
-                            {block.classNumber && ` • #${block.classNumber}`}
-                          </p>
-                          <Separator />
-                          <div className="text-sm space-y-1">
-                            <p>
-                              <strong>Time:</strong> {block.startTime} - {block.endTime}
-                            </p>
-                            {block.instructor && (
-                              <p>
-                                <strong>Instructor:</strong> {block.instructor}
-                              </p>
-                            )}
-                            {block.location && (
-                              <p>
-                                <strong>Location:</strong> {block.location}
-                              </p>
-                            )}
-                            <p>
-                              <strong>Credits:</strong> {block.credits}
-                            </p>
-                          </div>
-                          {block.notes && (
-                            <>
-                              <Separator />
-                              <p className="text-xs text-muted-foreground">{block.notes}</p>
-                            </>
-                          )}
-                        </div>
-                      </HoverCardContent>
-                    </HoverCard>
-                  );
-                })}
+    <div className="w-full overflow-hidden rounded-xl bg-surface-container-low shadow-[var(--elevation-2)]">
+      {/* Header with day names and stats */}
+      <div className="flex border-b border-border/30">
+        <div className="w-20 flex-shrink-0 bg-surface-container-low border-r border-border/30" />
+        {availableDays.map((day) => {
+          const blocks = schedule.blocksByDay[day] ?? [];
+          const hasConflicts = blocks.some((b) => b.conflict);
+          
+          return (
+            <div key={day} className="flex-1 min-w-[140px] px-4 py-3 text-center border-r border-border/10 last:border-r-0">
+              <div className="flex flex-col items-center gap-1">
+                <h3 className="font-semibold text-sm">{day}</h3>
+                <Badge 
+                  variant={blocks.length === 0 ? "secondary" : hasConflicts ? "destructive" : "default"} 
+                  className="text-[10px] px-2 py-0"
+                >
+                  {blocks.length === 0 ? "Free" : `${blocks.length} class${blocks.length > 1 ? "es" : ""}`}
+                </Badge>
               </div>
-            </CardContent>
-          </Card>
-        );
-      })}
+            </div>
+          );
+        })}
+      </div>
+
+      {/* Calendar body with horizontal scroll */}
+      <div className="flex overflow-x-auto scrollbar-thin scrollbar-track-transparent scrollbar-thumb-border/50 hover:scrollbar-thumb-border/70 snap-x snap-mandatory">
+        {/* Time axis (sticky left) */}
+        <div className="w-20 flex-shrink-0 sticky left-0 bg-surface-container-low z-10 border-r border-border/30">
+          <div className="relative" style={{ height: `${timeLabels.length * 60}px` }}>
+            {timeLabels.map((time, idx) => (
+              <div
+                key={time}
+                className="absolute left-0 right-0 text-xs text-muted-foreground font-mono text-center px-2"
+                style={{ top: `${idx * 60}px` }}
+              >
+                {time}
+              </div>
+            ))}
+          </div>
+        </div>
+
+        {/* Day columns */}
+        {availableDays.map((day) => {
+          const blocks = schedule.blocksByDay[day] ?? [];
+          
+          return (
+            <div 
+              key={day} 
+              className="flex-1 min-w-[140px] relative border-r border-border/10 last:border-r-0 snap-center"
+              style={{ height: `${timeLabels.length * 60}px` }}
+            >
+              {/* Horizontal gridlines */}
+              {timeLabels.map((_, idx) => (
+                <div
+                  key={idx}
+                  className="absolute left-0 right-0 border-t border-border/20"
+                  style={{ top: `${idx * 60}px` }}
+                />
+              ))}
+
+              {/* Course blocks */}
+              {blocks.map((block, blockIdx) => {
+                const start = timeStringToMinutes(block.startTime);
+                const end = timeStringToMinutes(block.endTime);
+                const top = ((start - bounds.start) / duration) * 100;
+                const height = ((end - start) / duration) * 100;
+                const isCompact = height < 15;
+
+                return (
+                  <HoverCard key={`${block.id || blockIdx}-${day}`}>
+                    <HoverCardTrigger asChild>
+                      <div
+                        className={cn(
+                          "absolute inset-x-2 rounded-xl p-3 transition-all duration-200 cursor-pointer group",
+                          "bg-gradient-to-br from-surface-container-high to-surface-container",
+                          "border shadow-[var(--elevation-2)]",
+                          "hover:shadow-[var(--elevation-4)] hover:scale-[1.02]",
+                          block.conflict
+                            ? "border-destructive/50 border-l-4 border-l-destructive bg-destructive/5"
+                            : "border-primary/20"
+                        )}
+                        style={{ top: `${top}%`, height: `${height}%` }}
+                      >
+                        {/* Conflict indicator */}
+                        {block.conflict && (
+                          <div className="absolute top-2 left-2 w-2 h-2 rounded-full bg-destructive animate-pulse" />
+                        )}
+
+                        {/* Course code badge */}
+                        <Badge 
+                          variant={block.conflict ? "destructive" : "default"}
+                          className="absolute top-2 right-2 text-[10px] px-1.5 py-0"
+                        >
+                          {block.code}
+                        </Badge>
+
+                        {/* Course title */}
+                        <p className={cn(
+                          "font-semibold pr-16 mb-1",
+                          isCompact ? "text-xs line-clamp-1" : "text-sm line-clamp-2"
+                        )}>
+                          {block.title || block.code}
+                        </p>
+
+                        {/* Time */}
+                        <p className="text-xs text-muted-foreground font-mono">
+                          {block.startTime} - {block.endTime}
+                        </p>
+
+                        {/* Location (only if enough space) */}
+                        {!isCompact && block.location && (
+                          <p className="text-xs text-muted-foreground mt-1 flex items-center gap-1 line-clamp-1">
+                            <MapPin className="h-3 w-3 flex-shrink-0" />
+                            {block.location}
+                          </p>
+                        )}
+                      </div>
+                    </HoverCardTrigger>
+                    <HoverCardContent className="w-80" side="right">
+                      <div className="space-y-2">
+                        <h4 className="font-semibold text-base">{block.title}</h4>
+                        <p className="text-sm text-muted-foreground">
+                          {block.code}
+                          {block.classNumber && ` • #${block.classNumber}`}
+                        </p>
+                        <Separator />
+                        <div className="text-sm space-y-1">
+                          <p>
+                            <strong>Time:</strong> {block.startTime} - {block.endTime}
+                          </p>
+                          {block.instructor && (
+                            <p>
+                              <strong>Instructor:</strong> {block.instructor}
+                            </p>
+                          )}
+                          {block.location && (
+                            <p>
+                              <strong>Location:</strong> {block.location}
+                            </p>
+                          )}
+                          <p>
+                            <strong>Credits:</strong> {block.credits}
+                          </p>
+                        </div>
+                        {block.notes && (
+                          <>
+                            <Separator />
+                            <p className="text-xs text-muted-foreground">{block.notes}</p>
+                          </>
+                        )}
+                      </div>
+                    </HoverCardContent>
+                  </HoverCard>
+                );
+              })}
+            </div>
+          );
+        })}
+      </div>
     </div>
   );
 };

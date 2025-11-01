@@ -270,9 +270,9 @@ export const AuthModal = ({ open, onOpenChange, onSuccess, onClose }: AuthModalP
 
   return (
     <Dialog open={open ?? true} onOpenChange={onClose ? () => onClose() : onOpenChange}>
-      <DialogContent className="sm:max-w-md animate-scale-in">
+      <DialogContent className="sm:max-w-md">
         <DialogHeader>
-          <DialogTitle className="text-2xl font-bold bg-gradient-to-r from-primary to-accent bg-clip-text text-transparent">
+          <DialogTitle className="text-2xl font-bold text-foreground">
             {emailSent ? "Check Your Email" : "Join Kairos"}
           </DialogTitle>
           {emailSent && (
@@ -302,18 +302,6 @@ export const AuthModal = ({ open, onOpenChange, onSuccess, onClose }: AuthModalP
                 Continue with Google
               </Button>
               
-              {window.PublicKeyCredential && (
-                <Button
-                  type="button"
-                  variant="outline"
-                  onClick={handlePasskeySignIn}
-                  disabled={isLoading}
-                  className="w-full h-12"
-                >
-                  <Fingerprint className="w-5 h-5 mr-2" />
-                  Sign in with Passkey
-                </Button>
-              )}
             </div>
             
             <div className="relative mb-4">
@@ -357,7 +345,7 @@ export const AuthModal = ({ open, onOpenChange, onSuccess, onClose }: AuthModalP
                 </div>
                 <Button 
                   type="submit" 
-                  className="w-full h-12 bg-gradient-to-r from-primary to-accent hover:opacity-90"
+                  className="w-full h-12"
                   disabled={isLoading}
                 >
                   {isLoading ? (
@@ -395,7 +383,7 @@ export const AuthModal = ({ open, onOpenChange, onSuccess, onClose }: AuthModalP
                 </div>
                 <Button
                   type="submit"
-                  className="w-full h-12 bg-gradient-to-r from-primary to-accent hover:opacity-90"
+                  className="w-full h-12"
                   disabled={isLoading}
                 >
                   {isLoading ? (

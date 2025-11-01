@@ -11,7 +11,7 @@ export const FooterSection = () => {
   const navigate = useNavigate();
 
   return (
-    <footer className="py-12 border-t bg-muted/30">
+    <footer className="py-12 border-t bg-muted/50">
       <div className="max-w-7xl mx-auto px-4">
         {/* Top row: Brand + Links */}
         <div className="flex flex-col md:flex-row justify-between items-center gap-8">

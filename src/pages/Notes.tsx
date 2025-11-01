@@ -261,7 +261,7 @@ export default function Notes() {
               <div className="flex items-center gap-2">
                 <Button
                   onClick={handleCreateNote}
-                  className="sm:hidden bg-gradient-to-r from-primary to-accent"
+                  className="sm:hidden"
                 >
                   <Plus className="w-4 h-4 mr-2" />
                   New note
@@ -287,7 +287,7 @@ export default function Notes() {
             ) : filteredNotes.length === 0 ? (
               <div className="text-center py-12">
                 <div className="mb-4">
-                  <div className="w-24 h-24 mx-auto rounded-full bg-gradient-to-br from-primary/20 to-accent/20 flex items-center justify-center">
+                  <div className="w-24 h-24 mx-auto rounded-full bg-primary/10 flex items-center justify-center">
                     <Plus className="w-12 h-12 text-primary" />
                   </div>
                 </div>
@@ -295,7 +295,7 @@ export default function Notes() {
                 <p className="text-muted-foreground mb-6">
                   Start your academic journey by creating your first note
                 </p>
-                <Button onClick={handleCreateNote} className="bg-gradient-to-r from-primary to-accent">
+                <Button onClick={handleCreateNote}>
                   <Plus className="w-4 h-4 mr-2" />
                   Create Your First Note
                 </Button>

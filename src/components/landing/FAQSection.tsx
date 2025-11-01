@@ -29,14 +29,14 @@ export const FAQSection = () => {
     <section id="faqs" className="py-24 px-4 bg-background">
       <div className="max-w-4xl mx-auto">
         <h2 className="text-4xl md:text-5xl font-bold text-center mb-4">
-          Frequently Asked <span className="bg-gradient-to-r from-primary to-accent bg-clip-text text-transparent">Questions</span>
+          Frequently Asked <span className="text-primary">Questions</span>
         </h2>
         <p className="text-center text-muted-foreground mb-12">
           Everything you need to know about Kairos
         </p>
         <Accordion type="single" collapsible className="space-y-4">
           {faqs.map((faq, idx) => (
-            <AccordionItem key={idx} value={`item-${idx}`} className="bg-card border rounded-lg px-6">
+            <AccordionItem key={idx} value={`item-${idx}`} className="bg-card border rounded-xl px-6 shadow-[var(--elevation-1)]">
               <AccordionTrigger className="text-left font-semibold hover:no-underline">
                 {faq.question}
               </AccordionTrigger>

@@ -74,17 +74,17 @@ export const PricingSection = () => {
   };
 
   return (
-    <section id="pricing" className="py-24 px-4 bg-muted/30">
+    <section id="pricing" className="py-24 px-4 bg-muted/50">
       <div className="max-w-7xl mx-auto">
         <h2 className="text-4xl md:text-5xl font-bold text-center mb-4">
-          Simple <span className="bg-gradient-to-r from-primary to-accent bg-clip-text text-transparent">Pricing</span>
+          Simple <span className="text-primary">Pricing</span>
         </h2>
         <p className="text-center text-muted-foreground mb-16">Coming Soon</p>
         <div className="grid md:grid-cols-3 gap-8">
           {tiers.map((tier, idx) => (
             <div
               key={idx}
-              className="p-8 bg-card rounded-2xl border shadow-sm opacity-60"
+              className="p-8 bg-card rounded-xl border shadow-[var(--elevation-1)] opacity-60"
             >
               <h3 className="text-2xl font-bold mb-6">{tier.name}</h3>
               <ul className="space-y-3 mb-8">

@@ -2,110 +2,96 @@
 @tailwind components;
 @tailwind utilities;
 
-/* Definition of the design system. All colors, gradients, fonts, etc should be defined here. 
-All colors MUST be HSL.
-*/
+/* Material Design 3 Design System */
 
 @layer base {
   :root {
     --background: 0 0% 100%;
-    --foreground: 222.2 84% 4.9%;
-
+    --foreground: 220 13% 13%;
     --card: 0 0% 100%;
-    --card-foreground: 222.2 84% 4.9%;
-
+    --card-foreground: 220 13% 13%;
     --popover: 0 0% 100%;
-    --popover-foreground: 222.2 84% 4.9%;
-
-    --primary: 262 83% 58%;
+    --popover-foreground: 220 13% 13%;
+    --primary: 220 65% 45%;
     --primary-foreground: 0 0% 100%;
-    --primary-glow: 262 83% 68%;
-
-    --secondary: 180 100% 45%;
+    --secondary: 180 40% 50%;
     --secondary-foreground: 0 0% 100%;
+    --muted: 220 13% 95%;
+    --muted-foreground: 220 13% 46%;
+    --accent: 220 13% 95%;
+    --accent-foreground: 220 13% 13%;
+    --destructive: 0 70% 50%;
+    --destructive-foreground: 0 0% 100%;
+    --border: 220 13% 91%;
+    --input: 220 13% 91%;
+    --ring: 220 65% 45%;
+    --radius: 0.5rem;
+    --chart-1: 210 70% 50%;
+    --chart-2: 180 60% 45%;
+    --chart-3: 150 50% 40%;
+    --chart-4: 40 70% 55%;
+    --chart-5: 20 75% 60%;
 
-    --muted: 210 40% 96.1%;
-    --muted-foreground: 215.4 16.3% 46.9%;
-
-    --accent: 340 82% 62%;
-    --accent-foreground: 0 0% 100%;
-
-    --destructive: 0 84.2% 60.2%;
-    --destructive-foreground: 210 40% 98%;
-
-    --border: 214.3 31.8% 91.4%;
-    --input: 214.3 31.8% 91.4%;
-    --ring: 262 83% 58%;
-
-    --radius: 0.75rem;
-
-    --gradient-primary: linear-gradient(135deg, hsl(262 83% 58%), hsl(340 82% 62%));
-    --gradient-secondary: linear-gradient(135deg, hsl(180 100% 45%), hsl(262 83% 58%));
-    --gradient-hero: linear-gradient(180deg, hsl(262 83% 58% / 0.1), hsl(340 82% 62% / 0.05));
-    --gradient-pulsating: linear-gradient(135deg, hsl(340 82% 62% / 0.3), hsl(280 100% 70% / 0.3));
+    /* Material Design Elevation Shadows */
+    --elevation-1: 0 1px 2px 0 rgb(0 0 0 / 0.05);
+    --elevation-2: 0 1px 3px 0 rgb(0 0 0 / 0.1), 0 1px 2px -1px rgb(0 0 0 / 0.1);
+    --elevation-3: 0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1);
+    --elevation-4: 0 10px 15px -3px rgb(0 0 0 / 0.1), 0 4px 6px -4px rgb(0 0 0 / 0.1);
+    --elevation-6: 0 20px 25px -5px rgb(0 0 0 / 0.1), 0 8px 10px -6px rgb(0 0 0 / 0.1);
     
-    --shadow-glow: 0 0 40px hsl(262 83% 58% / 0.3);
-    --shadow-elegant: 0 10px 30px -10px hsl(262 83% 58% / 0.3);
-    
-    --transition-smooth: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-    --transition-dissolve: all 0.6s cubic-bezier(0.4, 0, 0.2, 1);
-
+    /* Sidebar */
     --sidebar-background: 0 0% 98%;
-    --sidebar-foreground: 240 5.3% 26.1%;
-    --sidebar-primary: 240 5.9% 10%;
+    --sidebar-foreground: 220 13% 26%;
+    --sidebar-primary: 220 65% 45%;
     --sidebar-primary-foreground: 0 0% 98%;
-    --sidebar-accent: 240 4.8% 95.9%;
-    --sidebar-accent-foreground: 240 5.9% 10%;
+    --sidebar-accent: 220 13% 95%;
+    --sidebar-accent-foreground: 220 65% 45%;
     --sidebar-border: 220 13% 91%;
-    --sidebar-ring: 217.2 91.2% 59.8%;
+    --sidebar-ring: 220 65% 45%;
   }
 
   .dark {
-    --background: 222.2 84% 4.9%;
-    --foreground: 210 40% 98%;
-
-    --card: 222.2 84% 4.9%;
-    --card-foreground: 210 40% 98%;
-
-    --popover: 222.2 84% 4.9%;
-    --popover-foreground: 210 40% 98%;
-
-    --primary: 250 85% 65%;
+    --background: 220 15% 12%;
+    --foreground: 220 13% 95%;
+    --card: 220 15% 16%;
+    --card-foreground: 220 13% 95%;
+    --popover: 220 15% 16%;
+    --popover-foreground: 220 13% 95%;
+    --primary: 220 65% 55%;
     --primary-foreground: 0 0% 100%;
-    --primary-glow: 250 85% 75%;
-
-    --secondary: 200 90% 60%;
+    --secondary: 180 40% 45%;
     --secondary-foreground: 0 0% 100%;
+    --muted: 220 15% 20%;
+    --muted-foreground: 220 13% 65%;
+    --accent: 220 15% 20%;
+    --accent-foreground: 220 13% 95%;
+    --destructive: 0 70% 45%;
+    --destructive-foreground: 0 0% 100%;
+    --border: 220 15% 24%;
+    --input: 220 15% 24%;
+    --ring: 220 65% 55%;
+    --chart-1: 210 70% 55%;
+    --chart-2: 180 60% 50%;
+    --chart-3: 150 50% 45%;
+    --chart-4: 40 70% 60%;
+    --chart-5: 20 75% 65%;
 
-    --muted: 217.2 32.6% 17.5%;
-    --muted-foreground: 215 20.2% 65.1%;
+    /* Material Design Elevation Shadows (darker for dark mode) */
+    --elevation-1: 0 1px 2px 0 rgb(0 0 0 / 0.3);
+    --elevation-2: 0 1px 3px 0 rgb(0 0 0 / 0.4), 0 1px 2px -1px rgb(0 0 0 / 0.4);
+    --elevation-3: 0 4px 6px -1px rgb(0 0 0 / 0.4), 0 2px 4px -2px rgb(0 0 0 / 0.4);
+    --elevation-4: 0 10px 15px -3px rgb(0 0 0 / 0.4), 0 4px 6px -4px rgb(0 0 0 / 0.4);
+    --elevation-6: 0 20px 25px -5px rgb(0 0 0 / 0.4), 0 8px 10px -6px rgb(0 0 0 / 0.4);
 
-    --accent: 280 75% 68%;
-    --accent-foreground: 0 0% 100%;
-
-    --destructive: 0 62.8% 30.6%;
-    --destructive-foreground: 210 40% 98%;
-
-    --border: 217.2 32.6% 17.5%;
-    --input: 217.2 32.6% 17.5%;
-    --ring: 262 83% 68%;
-
-    --gradient-primary: linear-gradient(135deg, hsl(262 83% 68%), hsl(340 82% 72%));
-    --gradient-secondary: linear-gradient(135deg, hsl(180 100% 55%), hsl(262 83% 68%));
-    --gradient-hero: linear-gradient(180deg, hsl(262 83% 68% / 0.15), hsl(340 82% 72% / 0.1));
-    --gradient-pulsating: linear-gradient(135deg, hsl(340 82% 72% / 0.3), hsl(280 100% 80% / 0.3));
-    
-    --shadow-glow: 0 0 40px hsl(262 83% 68% / 0.4);
-    --shadow-elegant: 0 10px 30px -10px hsl(262 83% 68% / 0.4);
-
-    --sidebar-background: 240 5.9% 10%;
-    --sidebar-foreground: 240 4.8% 95.9%;
-    --sidebar-primary: 224.3 76.3% 48%;
+    /* Sidebar */
+    --sidebar-background: 220 15% 10%;
+    --sidebar-foreground: 220 13% 95%;
+    --sidebar-primary: 220 65% 55%;
     --sidebar-primary-foreground: 0 0% 100%;
-    --sidebar-accent: 240 3.7% 15.9%;
-    --sidebar-accent-foreground: 240 4.8% 95.9%;
-    --sidebar-border: 240 3.7% 15.9%;
-    --sidebar-ring: 217.2 91.2% 59.8%;
+    --sidebar-accent: 220 15% 20%;
+    --sidebar-accent-foreground: 220 65% 55%;
+    --sidebar-border: 220 15% 24%;
+    --sidebar-ring: 220 65% 55%;
   }
 }
 
@@ -121,19 +107,15 @@ All colors MUST be HSL.
 
 @layer utilities {
   .animate-fade-in {
-    animation: fadeIn 0.6s cubic-bezier(0.4, 0, 0.2, 1);
-  }
-  
-  .animate-dissolve {
-    animation: dissolve 0.6s cubic-bezier(0.4, 0, 0.2, 1);
+    animation: fadeIn 0.3s ease-out;
   }
   
   .animate-slide-up {
-    animation: slideUp 0.5s cubic-bezier(0.4, 0, 0.2, 1);
+    animation: slideUp 0.3s ease-out;
   }
   
   .animate-scale-in {
-    animation: scaleIn 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+    animation: scaleIn 0.2s ease-out;
   }
   
   @keyframes fadeIn {
@@ -145,21 +127,10 @@ All colors MUST be HSL.
     }
   }
   
-  @keyframes dissolve {
-    from {
-      opacity: 0;
-      filter: blur(10px);
-    }
-    to {
-      opacity: 1;
-      filter: blur(0);
-    }
-  }
-  
   @keyframes slideUp {
     from {
       opacity: 0;
-      transform: translateY(20px);
+      transform: translateY(10px);
     }
     to {
       opacity: 1;
@@ -178,17 +149,6 @@ All colors MUST be HSL.
     }
   }
   
-  @keyframes pulsate {
-    0%, 100% {
-      opacity: 0.4;
-      transform: scale(1);
-    }
-    50% {
-      opacity: 0.8;
-      transform: scale(1.05);
-    }
-  }
-  
   @keyframes float {
     0%, 100% {
       transform: translateY(0px);
@@ -197,106 +157,22 @@ All colors MUST be HSL.
       transform: translateY(-6px);
     }
   }
-  
-@keyframes shimmer {
-  0% {
-    background-position: -200% center;
-  }
-  100% {
-    background-position: 200% center;
-  }
-}
 
-@keyframes orb-float-1 {
-  0%, 100% {
-    transform: translate(0, 0) scale(1);
-  }
-  50% {
-    transform: translate(100px, -100px) scale(1.2);
-  }
-}
-
-@keyframes orb-float-2 {
-  0%, 100% {
-    transform: translate(0, 0) scale(1);
-  }
-  50% {
-    transform: translate(-80px, 120px) scale(1.15);
-  }
-}
-
-@keyframes orb-float-3 {
-  0%, 100% {
-    transform: translate(0, 0) scale(1);
-  }
-  50% {
-    transform: translate(120px, 80px) scale(1.1);
-  }
-}
-
-@keyframes scroll {
-  0% {
-    transform: translateX(0);
-  }
-  100% {
-    transform: translateX(-33.333%);
-  }
-}
-  
-  .animate-pulsate {
-    animation: pulsate 3s ease-in-out infinite;
+  @keyframes scroll {
+    0% {
+      transform: translateX(0);
+    }
+    100% {
+      transform: translateX(-33.333%);
+    }
   }
   
   .animate-float {
-    animation: float 10s ease-in-out infinite;
-  }
-  
-  .animate-shimmer {
-    animation: shimmer 3s linear infinite;
+    animation: float 3s ease-in-out infinite;
   }
 
   .animate-scroll {
     animation: scroll 30s linear infinite;
-  }
-
-  .gradient-orb {
-    position: absolute;
-    border-radius: 50%;
-    filter: blur(80px);
-    opacity: 0.3;
-    pointer-events: none;
-  }
-
-  .gradient-orb-1 {
-    width: 600px;
-    height: 600px;
-    background: radial-gradient(circle, hsl(var(--primary)) 0%, transparent 70%);
-    top: -200px;
-    left: -200px;
-    animation: orb-float-1 20s ease-in-out infinite;
-  }
-
-  .gradient-orb-2 {
-    width: 500px;
-    height: 500px;
-    background: radial-gradient(circle, hsl(var(--accent)) 0%, transparent 70%);
-    bottom: -150px;
-    right: -150px;
-    animation: orb-float-2 25s ease-in-out infinite;
-  }
-
-  .gradient-orb-3 {
-    width: 550px;
-    height: 550px;
-    background: radial-gradient(circle, hsl(var(--secondary)) 0%, transparent 70%);
-    top: 50%;
-    left: 50%;
-    transform: translate(-50%, -50%);
-    animation: orb-float-3 30s ease-in-out infinite;
-  }
-
-  .text-glow {
-    text-shadow: 0 0 20px hsl(var(--primary) / 0.5), 0 0 40px hsl(var(--primary) / 0.3);
   }
 
   /* Splash screen animations */
@@ -329,10 +205,10 @@ All colors MUST be HSL.
 
   @keyframes splashGlow {
     0%, 100% {
-      filter: drop-shadow(0 0 10px hsl(250 85% 65% / 0.4));
+      filter: drop-shadow(0 0 10px hsl(220 65% 55% / 0.4));
     }
     50% {
-      filter: drop-shadow(0 0 25px hsl(250 85% 65% / 0.9));
+      filter: drop-shadow(0 0 25px hsl(220 65% 55% / 0.7));
     }
   }
 
@@ -343,14 +219,10 @@ All colors MUST be HSL.
 
 @media (prefers-reduced-motion: reduce) {
   .animate-fade-in,
-  .animate-dissolve,
   .animate-slide-up,
   .animate-scale-in,
-  .animate-pulsate,
   .animate-float,
-  .animate-shimmer,
-  .animate-scroll,
-  .gradient-orb {
+  .animate-scroll {
     animation: none !important;
   }
 }

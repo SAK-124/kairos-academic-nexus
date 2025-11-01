@@ -132,18 +132,10 @@ export const HeroSection = ({ onCTAClick }: HeroSectionProps) => {
   return (
     <section
       id="home"
-      className="min-h-screen flex items-center justify-center px-4 animate-dissolve relative overflow-hidden"
+      className="min-h-screen flex items-center justify-center px-4 relative"
     >
-      {/* Pulsating Background */}
-      <div className="absolute inset-0 -z-10">
-        <div
-          className="absolute inset-0 animate-pulsate"
-          style={{ background: "var(--gradient-pulsating)" }}
-        />
-      </div>
-
-      <div className="max-w-4xl text-center space-y-8 relative z-10">
-        <h1 className="text-5xl md:text-7xl font-bold bg-gradient-to-r from-primary via-accent to-secondary bg-clip-text text-transparent leading-tight animate-shimmer">
+      <div className="max-w-4xl text-center space-y-8 relative z-10 animate-fade-in">
+        <h1 className="text-5xl md:text-7xl font-bold text-foreground leading-tight">
           {content?.headline || "Your AI-Powered Academic Companion"}
         </h1>
         <p className="text-xl md:text-2xl text-muted-foreground max-w-2xl mx-auto">
@@ -158,7 +150,7 @@ export const HeroSection = ({ onCTAClick }: HeroSectionProps) => {
             }}
             size="lg"
             variant="default"
-            className="h-14 px-8 text-lg bg-gradient-to-r from-primary to-accent hover:opacity-90 group"
+            className="h-14 px-8 text-lg shadow-[var(--elevation-2)] hover:shadow-[var(--elevation-3)] transition-shadow"
           >
             Join Waitlist!
           </Button>
@@ -170,7 +162,7 @@ export const HeroSection = ({ onCTAClick }: HeroSectionProps) => {
                     onClick={handleCTAClick}
                     size="lg"
                     disabled={!buttonMapping.enabled}
-                    className="h-14 px-8 text-lg bg-gradient-to-r from-primary to-accent hover:opacity-90 group"
+                    className="h-14 px-8 text-lg shadow-[var(--elevation-2)] hover:shadow-[var(--elevation-3)] transition-shadow group"
                   >
                     {content?.cta_text || "Start Planning"}
                     <ArrowRight className="ml-2 group-hover:translate-x-1 transition-transform" />
@@ -184,7 +176,7 @@ export const HeroSection = ({ onCTAClick }: HeroSectionProps) => {
               </Tooltip>
             </TooltipProvider>
           ) : (
-            <div className="h-14 w-48 rounded-full bg-muted/60 animate-pulse" aria-hidden />
+            <div className="h-14 w-48 rounded bg-muted/60 animate-pulse" aria-hidden />
           )}
         </div>
       </div>

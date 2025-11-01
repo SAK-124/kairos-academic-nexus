@@ -60,13 +60,6 @@ const Index = () => {
 
   return (
     <div className="relative min-h-screen">
-      {/* Animated gradient orbs background */}
-      <div className="fixed inset-0 -z-10 overflow-hidden">
-        <div className="gradient-orb gradient-orb-1"></div>
-        <div className="gradient-orb gradient-orb-2"></div>
-        <div className="gradient-orb gradient-orb-3"></div>
-      </div>
-
       <Navigation 
         user={user}
         isAdmin={isAdmin}

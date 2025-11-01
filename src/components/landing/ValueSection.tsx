@@ -30,21 +30,18 @@ const benefits = [
 
 export const ValueSection = () => {
   return (
-    <section id="features" className="py-24 px-4 bg-muted/30">
+    <section id="features" className="py-24 px-4 bg-muted/50">
       <div className="max-w-7xl mx-auto">
         <h2 className="text-4xl md:text-5xl font-bold text-center mb-16">
-          Everything You Need to <span className="bg-gradient-to-r from-primary to-accent bg-clip-text text-transparent">Excel</span>
+          Everything You Need to <span className="text-primary">Excel</span>
         </h2>
         <div className="grid md:grid-cols-3 lg:grid-cols-5 gap-6">
           {benefits.map((benefit, idx) => (
             <div
               key={idx}
-              className="group p-6 bg-card rounded-xl border shadow-sm hover:shadow-lg hover:-translate-y-1 transition-all cursor-pointer"
-              style={{
-                animationDelay: `${idx * 100}ms`,
-              }}
+              className="group p-6 bg-card rounded-xl border shadow-[var(--elevation-1)] hover:shadow-[var(--elevation-2)] transition-shadow cursor-pointer"
             >
-              <div className="w-12 h-12 rounded-lg bg-gradient-to-br from-primary to-accent flex items-center justify-center mb-4 group-hover:scale-110 transition-transform">
+              <div className="w-12 h-12 rounded-lg bg-primary flex items-center justify-center mb-4">
                 <benefit.icon className="w-6 h-6 text-white" />
               </div>
               <h3 className="font-bold mb-2">{benefit.title}</h3>

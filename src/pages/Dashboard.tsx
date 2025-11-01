@@ -175,11 +175,10 @@ const SchedulePreview = ({ courses }: { courses: DashboardCourse[] }) => {
     timeLabels.push(formatMinutesToTime(hour * 60));
   }
 
-  const hourHeight = 64;
-  const totalHeight = Math.max(timeLabels.length * hourHeight, 320);
+  const hourHeight = 56;
 
   return (
-    <div className="rounded-2xl border border-border/30 bg-surface-container-low/80 shadow-[var(--elevation-2)] overflow-hidden">
+    <div className="rounded-xl border border-border/30 bg-surface-container-low overflow-hidden">
       <div className="grid grid-cols-[5rem_repeat(7,minmax(0,1fr))] border-b border-border/20 bg-surface-container">
         <div className="h-full border-r border-border/20" />
         {DAY_NAMES.map((day) => {
@@ -187,8 +186,8 @@ const SchedulePreview = ({ courses }: { courses: DashboardCourse[] }) => {
           return (
             <div key={day} className="px-2 py-3 text-center border-r border-border/10 last:border-r-0">
               <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">{day.slice(0, 3)}</p>
-              <p className="text-[11px] font-medium text-muted-foreground/80">
-                {blocks.length === 0 ? "Free" : `${blocks.length}×`}
+              <p className="text-[11px] text-muted-foreground">
+                {blocks.length === 0 ? "—" : `${blocks.length}×`}
               </p>
             </div>
           );
@@ -196,7 +195,7 @@ const SchedulePreview = ({ courses }: { courses: DashboardCourse[] }) => {
       </div>
       <div className="grid grid-cols-[5rem_repeat(7,minmax(0,1fr))] text-xs">
         <div className="border-r border-border/20 bg-surface-container">
-          <div className="relative" style={{ height: `${totalHeight}px` }}>
+          <div className="relative" style={{ height: `${timeLabels.length * hourHeight}px` }}>
             {timeLabels.map((time, idx) => (
               <div
                 key={time}
@@ -213,8 +212,8 @@ const SchedulePreview = ({ courses }: { courses: DashboardCourse[] }) => {
           return (
             <div
               key={day}
-              className="relative border-r border-border/10 last:border-r-0 bg-background/30"
-              style={{ height: `${totalHeight}px` }}
+              className="relative border-r border-border/10 last:border-r-0 bg-background/20"
+              style={{ height: `${timeLabels.length * hourHeight}px` }}
             >
               {timeLabels.map((_, idx) => (
                 <div
@@ -228,26 +227,17 @@ const SchedulePreview = ({ courses }: { courses: DashboardCourse[] }) => {
                 const end = timeStringToMinutes(block.endTime);
                 if (start === 0 && end === 0) return null;
                 const top = ((start - bounds.start) / duration) * 100;
-                const height = Math.max(((end - start) / duration) * 100, 8);
+                const height = Math.max(((end - start) / duration) * 100, 6);
 
                 return (
                   <div
                     key={`${block.id || blockIdx}-${day}`}
-                    className="absolute inset-x-2 flex h-full flex-col justify-between rounded-xl border border-primary/35 bg-primary/25 px-2 py-2 text-center text-primary-foreground shadow-[0_12px_28px_-24px_rgba(59,130,246,0.8)]"
+                    className="absolute inset-x-2 rounded-lg bg-primary/20 border border-primary/30 text-primary-foreground/80 px-2 py-1 overflow-hidden"
                     style={{ top: `${top}%`, height: `${height}%` }}
-                    title={`${block.title || block.code} • ${block.startTime} - ${block.endTime}`}
                   >
-                    <div className="flex flex-1 flex-col items-center justify-center gap-1">
-                      <p className="text-[11px] font-semibold leading-tight">{block.title || block.code}</p>
-                      {block.code && (
-                        <p className="text-[10px] font-medium uppercase tracking-wide text-primary-foreground/80">
-                          {block.code}
-                        </p>
-                      )}
-                    </div>
-                    <p className="text-[10px] font-mono font-semibold text-primary-foreground/80">
-                      {block.startTime} – {block.endTime}
-                    </p>
+                    <p className="text-[11px] font-semibold leading-tight line-clamp-2">{block.code}</p>
+                    <p className="text-[10px] text-muted-foreground leading-tight line-clamp-2">{block.title}</p>
+                    <p className="text-[10px] font-mono mt-1">{block.startTime} - {block.endTime}</p>
                   </div>
                 );
               })}

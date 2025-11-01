@@ -969,13 +969,13 @@ const ScheduleGrid = ({
                       <div
                         className={cn(
                           "absolute inset-x-3 rounded-xl transition-all duration-200 cursor-pointer group overflow-hidden",
-                          "bg-primary/25 backdrop-blur-sm text-primary-foreground",
-                          "border border-primary/40 shadow-[0_16px_32px_-24px_rgba(59,130,246,0.65)]",
+                          "bg-primary/15 backdrop-blur-sm text-primary-foreground",
+                          "border border-primary/30 shadow-sm",
                           "hover:shadow-lg hover:scale-[1.02] hover:z-10",
                           block.conflict
                             ? "border-destructive/70 border-l-4 border-l-destructive bg-destructive/15 text-destructive-foreground"
                             : "",
-                          isVeryCompact ? "py-1.5 px-2.5" : isCompact ? "p-3" : "p-4"
+                          isVeryCompact ? "p-2" : isCompact ? "p-3" : "p-4"
                         )}
                         style={{ top: `${top}%`, height: `${height}%` }}
                       >

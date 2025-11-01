@@ -1,16 +1,13 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
-import { resolveGeminiKey } from "../_shared/ai-config.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 };
 
-const API_ENDPOINT = "https://generativelanguage.googleapis.com/v1beta";
-const DEFAULT_MODEL = "gemini-2.5-pro-exp";
-const DEFAULT_TEMPERATURE = 0.4;
+const DEFAULT_MODEL = "google/gemini-2.5-flash";
 
-type IncomingRole = "system" | "user" | "assistant" | "model";
+type IncomingRole = "system" | "user" | "assistant";
 
 type IncomingMessage = {
   role?: IncomingRole | null;
@@ -22,33 +19,13 @@ type NormalizedMessage = {
   content: string;
 };
 
-const extractText = (payload: Record<string, unknown>) => {
-  const candidates = Array.isArray(payload.candidates) ? payload.candidates : [];
-  const candidate =
-    candidates.length > 0 && typeof candidates[0] === "object"
-      ? (candidates[0] as Record<string, unknown>)
-      : null;
-
-  const content = candidate?.content;
-  const contentObj =
-    content && typeof content === "object" ? (content as Record<string, unknown>) : null;
-  const parts = contentObj && Array.isArray(contentObj.parts)
-    ? (contentObj.parts as Array<{ text?: string }>)
-    : [];
-
-  return parts
-    .map((part) => part?.text ?? "")
-    .filter((value) => Boolean(value && value.trim().length))
-    .join("\n");
-};
-
 const normalizeMessage = (message: IncomingMessage | null | undefined): NormalizedMessage | null => {
   if (!message || typeof message !== "object") {
     return null;
   }
 
   const role = message.role;
-  if (role !== "system" && role !== "user" && role !== "assistant" && role !== "model") {
+  if (role !== "system" && role !== "user" && role !== "assistant") {
     return null;
   }
 
@@ -104,35 +81,19 @@ serve(async (req) => {
     );
   }
 
-  const systemMessages = messages.filter((message) => message.role === "system");
-  const conversation = messages.filter((message) => message.role !== "system");
-
-  if (!conversation.length) {
-    return new Response(
-      JSON.stringify({ error: "Conversation messages are required" }),
-      {
-        status: 400,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      },
-    );
-  }
-
   const model = typeof payload.model === "string" && payload.model.trim().length
     ? payload.model.trim()
     : DEFAULT_MODEL;
 
-  const temperature = typeof payload.temperature === "number"
-    ? payload.temperature
-    : DEFAULT_TEMPERATURE;
-
   const responseMimeType =
     payload.responseMimeType === "application/json" ? "application/json" : "text/plain";
 
-  const GEMINI_API_KEY = await resolveGeminiKey();
+  const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
 
-  if (!GEMINI_API_KEY) {
+  if (!LOVABLE_API_KEY) {
+    console.error("LOVABLE_API_KEY is not configured");
     return new Response(
-      JSON.stringify({ error: "Gemini API key is not configured" }),
+      JSON.stringify({ error: "AI service is not configured" }),
       {
         status: 500,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
@@ -140,50 +101,48 @@ serve(async (req) => {
     );
   }
 
-  const contents = conversation.map((message) => ({
-    role: message.role === "assistant" ? "model" : message.role,
-    parts: [{ text: message.content }],
-  }));
-
-  const systemInstruction = systemMessages
-    .map((message) => message.content)
-    .filter((content) => content.trim().length)
-    .join("\n\n");
-
   try {
-    const response = await fetch(
-      `${API_ENDPOINT}/models/${model}:generateContent?key=${GEMINI_API_KEY}`,
-      {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          systemInstruction: systemInstruction
-            ? {
-                role: "system",
-                parts: [{ text: systemInstruction }],
-              }
-            : undefined,
-          contents,
-          generationConfig: {
-            responseMimeType,
-            temperature,
-          },
-        }),
+    const response = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${LOVABLE_API_KEY}`,
+        "Content-Type": "application/json",
       },
-    );
-
-    const data = (await response.json()) as Record<string, unknown>;
+      body: JSON.stringify({
+        model,
+        messages,
+        response_format: responseMimeType === "application/json" 
+          ? { type: "json_object" }
+          : undefined,
+      }),
+    });
 
     if (!response.ok) {
-      const errorMessage =
-        typeof data?.error === "object" && data.error !== null
-          ? (data.error as { message?: string }).message
-          : null;
+      const errorText = await response.text();
+      console.error("AI Gateway error:", response.status, errorText);
+      
+      if (response.status === 429) {
+        return new Response(
+          JSON.stringify({ error: "Rate limit exceeded. Please try again later." }),
+          {
+            status: 429,
+            headers: { ...corsHeaders, "Content-Type": "application/json" },
+          },
+        );
+      }
+      
+      if (response.status === 402) {
+        return new Response(
+          JSON.stringify({ error: "Payment required. Please add credits to your workspace." }),
+          {
+            status: 402,
+            headers: { ...corsHeaders, "Content-Type": "application/json" },
+          },
+        );
+      }
 
       return new Response(
-        JSON.stringify({ error: errorMessage ?? "Gemini request failed" }),
+        JSON.stringify({ error: "AI request failed" }),
         {
           status: response.status,
           headers: { ...corsHeaders, "Content-Type": "application/json" },
@@ -191,12 +150,16 @@ serve(async (req) => {
       );
     }
 
-    const text = extractText(data);
+    const data = (await response.json()) as Record<string, unknown>;
+    const choices = Array.isArray(data.choices) ? data.choices : [];
+    const firstChoice = choices[0] as Record<string, unknown> | undefined;
+    const message = firstChoice?.message as Record<string, unknown> | undefined;
+    const text = (typeof message?.content === "string" ? message.content : "") || "";
 
     if (responseMimeType === "application/json") {
       if (!text.trim().length) {
         return new Response(
-          JSON.stringify({ error: "Gemini returned an empty response" }),
+          JSON.stringify({ error: "AI returned an empty response" }),
           {
             status: 502,
             headers: { ...corsHeaders, "Content-Type": "application/json" },
@@ -214,7 +177,7 @@ serve(async (req) => {
         );
       } catch (_parseError) {
         return new Response(
-          JSON.stringify({ error: "Gemini returned invalid JSON", text }),
+          JSON.stringify({ error: "AI returned invalid JSON", text }),
           {
             status: 502,
             headers: { ...corsHeaders, "Content-Type": "application/json" },
@@ -230,9 +193,9 @@ serve(async (req) => {
       },
     );
   } catch (error) {
-    console.error("gemini-generate error", error);
+    console.error("gemini-generate error:", error);
     return new Response(
-      JSON.stringify({ error: "Unexpected error contacting Gemini" }),
+      JSON.stringify({ error: "Unexpected error contacting AI service" }),
       {
         status: 500,
         headers: { ...corsHeaders, "Content-Type": "application/json" },

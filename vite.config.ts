@@ -1,21 +1,25 @@
 import { defineConfig, splitVendorChunkPlugin } from "vite";
 import react from "@vitejs/plugin-react";
+import path from "path";
 import compression from "vite-plugin-compression";
 import { visualizer } from "rollup-plugin-visualizer";
+import { componentTagger } from "lovable-tagger";
 
-export default defineConfig({
+export default defineConfig(({ mode }) => ({
   server: {
+    host: "::",
     port: 8080,
   },
   plugins: [
     react(),
+    mode === 'development' && componentTagger(),
     splitVendorChunkPlugin(),
     compression({ algorithm: "brotliCompress", ext: ".br", deleteOriginFile: false }),
     visualizer({ template: "raw-data", filename: "dist/stats.html", gzipSize: true, brotliSize: true }),
-  ],
+  ].filter(Boolean),
   resolve: {
     alias: {
-      "@": "/src",
+      "@": path.resolve(__dirname, "./src"),
     },
   },
   build: {
@@ -38,4 +42,4 @@ export default defineConfig({
       },
     },
   },
-});
+}));

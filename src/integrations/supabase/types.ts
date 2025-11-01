@@ -286,7 +286,7 @@ export type Database = {
           is_favorite: boolean | null
           last_edited_at: string | null
           plain_text: string | null
-          plain_text_search: unknown | null
+          plain_text_search: unknown
           tags: string[] | null
           title: string
           updated_at: string | null
@@ -304,7 +304,7 @@ export type Database = {
           is_favorite?: boolean | null
           last_edited_at?: string | null
           plain_text?: string | null
-          plain_text_search?: unknown | null
+          plain_text_search?: unknown
           tags?: string[] | null
           title?: string
           updated_at?: string | null
@@ -322,7 +322,7 @@ export type Database = {
           is_favorite?: boolean | null
           last_edited_at?: string | null
           plain_text?: string | null
-          plain_text_search?: unknown | null
+          plain_text_search?: unknown
           tags?: string[] | null
           title?: string
           updated_at?: string | null
@@ -422,6 +422,63 @@ export type Database = {
           id?: string
           role?: Database["public"]["Enums"]["app_role"]
           user_id?: string
+        }
+        Relationships: []
+      }
+      webauthn_challenges: {
+        Row: {
+          challenge: string
+          created_at: string | null
+          expires_at: string
+          id: string
+          type: string
+        }
+        Insert: {
+          challenge: string
+          created_at?: string | null
+          expires_at: string
+          id?: string
+          type?: string
+        }
+        Update: {
+          challenge?: string
+          created_at?: string | null
+          expires_at?: string
+          id?: string
+          type?: string
+        }
+        Relationships: []
+      }
+      webauthn_credentials: {
+        Row: {
+          counter: number | null
+          created_at: string | null
+          credential_id: string
+          id: string
+          last_used_at: string | null
+          public_key: string
+          user_email: string
+          user_id: string | null
+        }
+        Insert: {
+          counter?: number | null
+          created_at?: string | null
+          credential_id: string
+          id?: string
+          last_used_at?: string | null
+          public_key: string
+          user_email: string
+          user_id?: string | null
+        }
+        Update: {
+          counter?: number | null
+          created_at?: string | null
+          credential_id?: string
+          id?: string
+          last_used_at?: string | null
+          public_key?: string
+          user_email?: string
+          user_id?: string | null
         }
         Relationships: []
       }

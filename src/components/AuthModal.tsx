@@ -80,7 +80,7 @@ export const AuthModal = ({ open, onOpenChange, onSuccess, onClose }: AuthModalP
   const handleGoogleSignIn = async () => {
     setIsLoading(true);
     try {
-      const { data, error } = await supabase.auth.signInWithOAuth({
+      const { error } = await supabase.auth.signInWithOAuth({
         provider: 'google',
         options: {
           redirectTo: `${window.location.origin}/`,
@@ -94,8 +94,8 @@ export const AuthModal = ({ open, onOpenChange, onSuccess, onClose }: AuthModalP
       if (error) {
         console.error('Google auth error:', error);
         toast({
-          title: "Google sign-in failed",
-          description: error.message || "Please ensure Google OAuth is configured in your backend settings",
+          title: "Google Sign-In Error",
+          description: error.message || "Please check your Google OAuth configuration in backend settings.",
           variant: "destructive",
         });
         setIsLoading(false);
@@ -104,8 +104,8 @@ export const AuthModal = ({ open, onOpenChange, onSuccess, onClose }: AuthModalP
     } catch (error: any) {
       console.error('Google auth exception:', error);
       toast({
-        title: "Authentication failed",
-        description: error?.message || "Please try again",
+        title: "Error",
+        description: error?.message || "Failed to initiate Google sign-in",
         variant: "destructive",
       });
       setIsLoading(false);

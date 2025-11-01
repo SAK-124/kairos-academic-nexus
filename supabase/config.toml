@@ -11,3 +11,9 @@ verify_jwt = true
 
 [functions.search-notes]
 verify_jwt = true
+
+[functions.webauthn-challenge]
+verify_jwt = false
+
+[functions.webauthn-verify]
+verify_jwt = false

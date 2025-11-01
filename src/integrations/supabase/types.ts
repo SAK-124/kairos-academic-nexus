@@ -370,6 +370,110 @@ export type Database = {
           },
         ]
       }
+      saved_schedules: {
+        Row: {
+          conflicts: Json | null
+          courses: Json
+          created_at: string | null
+          id: string
+          is_active: boolean | null
+          notes: string | null
+          schedule_name: string
+          semester: string | null
+          summary: Json | null
+          updated_at: string | null
+          user_id: string
+        }
+        Insert: {
+          conflicts?: Json | null
+          courses: Json
+          created_at?: string | null
+          id?: string
+          is_active?: boolean | null
+          notes?: string | null
+          schedule_name: string
+          semester?: string | null
+          summary?: Json | null
+          updated_at?: string | null
+          user_id: string
+        }
+        Update: {
+          conflicts?: Json | null
+          courses?: Json
+          created_at?: string | null
+          id?: string
+          is_active?: boolean | null
+          notes?: string | null
+          schedule_name?: string
+          semester?: string | null
+          summary?: Json | null
+          updated_at?: string | null
+          user_id?: string
+        }
+        Relationships: []
+      }
+      schedule_courses: {
+        Row: {
+          class_number: string | null
+          course_code: string
+          course_title: string
+          created_at: string | null
+          credits: number | null
+          days: string[]
+          display_order: number | null
+          end_time: string
+          id: string
+          instructor: string | null
+          location: string | null
+          notes: string | null
+          schedule_id: string
+          start_time: string
+          updated_at: string | null
+        }
+        Insert: {
+          class_number?: string | null
+          course_code: string
+          course_title: string
+          created_at?: string | null
+          credits?: number | null
+          days: string[]
+          display_order?: number | null
+          end_time: string
+          id?: string
+          instructor?: string | null
+          location?: string | null
+          notes?: string | null
+          schedule_id: string
+          start_time: string
+          updated_at?: string | null
+        }
+        Update: {
+          class_number?: string | null
+          course_code?: string
+          course_title?: string
+          created_at?: string | null
+          credits?: number | null
+          days?: string[]
+          display_order?: number | null
+          end_time?: string
+          id?: string
+          instructor?: string | null
+          location?: string | null
+          notes?: string | null
+          schedule_id?: string
+          start_time?: string
+          updated_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "schedule_courses_schedule_id_fkey"
+            columns: ["schedule_id"]
+            isOneToOne: false
+            referencedRelation: "saved_schedules"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       study_materials: {
         Row: {
           content: Json

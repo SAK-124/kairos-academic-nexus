@@ -6,7 +6,7 @@ import {
   useState,
   type ComponentType,
 } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useParams } from "react-router-dom";
 import {
   AlertTriangle,
   ArrowLeft,
@@ -19,6 +19,8 @@ import {
   Send,
   Sparkles,
   Upload,
+  Edit2,
+  Save,
 } from "lucide-react";
 import * as XLSX from "xlsx";
 
@@ -45,6 +47,13 @@ import {
   GeminiClient,
   type GeminiMessage,
 } from "@/integrations/gemini/client";
+import { supabase } from "@/integrations/supabase/client";
+import {
+  HoverCard,
+  HoverCardContent,
+  HoverCardTrigger,
+} from "@/components/ui/hover-card";
+import { Separator } from "@/components/ui/separator";
 
 const DAY_OPTIONS = [
   "Monday",
@@ -737,10 +746,8 @@ const computeScheduleBounds = (schedule: GeneratedSchedule | null) => {
 };
 
 const computeAvailableDays = (schedule: GeneratedSchedule | null) => {
-  if (!schedule) return Array.from(DAY_OPTIONS);
-
-  const days = DAY_OPTIONS.filter(day => schedule.blocksByDay[day]?.length);
-  return days.length ? days : Array.from(DAY_OPTIONS);
+  // Always show all 7 days for better context
+  return Array.from(DAY_OPTIONS);
 };
 
 const computeScheduleDuration = (bounds: { start: number; end: number }) =>
@@ -875,25 +882,25 @@ const ScheduleGrid = ({
   const availableDays = computeAvailableDays(schedule);
 
   return (
-    <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+    <div className="grid gap-3 grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-7">
       {availableDays.map(day => {
         const blocks = schedule.blocksByDay[day] ?? [];
 
         return (
-          <Card key={day} className="bg-background/70 border border-primary/10">
-            <CardHeader className="pb-4 text-left">
-              <CardTitle className="flex items-center gap-2 text-lg">
+          <Card key={day} className="bg-surface-container/50 border border-primary/10 hover:shadow-lg transition-shadow">
+            <CardHeader className="pb-3 text-left">
+              <CardTitle className="flex items-center gap-2 text-base">
                 <Calendar className="h-4 w-4 text-primary" /> {day}
               </CardTitle>
-              <CardDescription>
+              <CardDescription className="text-xs">
                 {blocks.length
-                  ? `${blocks.length} meeting${blocks.length === 1 ? "" : "s"}`
-                  : "No classes scheduled"}
+                  ? `${blocks.length} class${blocks.length === 1 ? "" : "es"}`
+                  : "Free day"}
               </CardDescription>
             </CardHeader>
             <CardContent className="relative">
-              <div className="relative h-[26rem] overflow-hidden">
-                <div className="absolute inset-0 border-l border-white/10">
+              <div className="relative h-[28rem] overflow-hidden rounded-lg bg-background/30">
+                <div className="absolute inset-0 border-l-2 border-primary/10">
                   {Array.from({ length: Math.floor(duration / 60) + 2 }).map((_, index) => {
                     const minuteMark = bounds.start + index * 60;
                     if (minuteMark > bounds.end) return null;
@@ -901,10 +908,10 @@ const ScheduleGrid = ({
                     return (
                       <div
                         key={`${day}-mark-${index}`}
-                        className="absolute left-0 right-0 border-t border-white/10 text-[10px] text-muted-foreground"
+                        className="absolute left-0 right-0 border-t border-primary/10"
                         style={{ top: `${top}%` }}
                       >
-                        <span className="-ml-2 bg-background/80 px-1 py-0.5 rounded">
+                        <span className="ml-2 bg-background/90 px-1.5 py-0.5 rounded text-[11px] text-muted-foreground font-medium">
                           {formatMinutesToTime(minuteMark)}
                         </span>
                       </div>
@@ -916,48 +923,69 @@ const ScheduleGrid = ({
                   const start = timeStringToMinutes(block.startTime);
                   const end = timeStringToMinutes(block.endTime);
                   const top = ((start - bounds.start) / duration) * 100;
-                  const height = Math.max(((end - start) / duration) * 100, 8);
+                  const height = Math.max(((end - start) / duration) * 100, 15);
 
                   return (
-                    <div
-                      key={`${block.id}-${day}`}
-                      className={cn(
-                        "absolute left-8 right-4 rounded-xl border bg-primary/20 backdrop-blur px-3 py-3 text-left shadow-lg",
-                        block.conflict
-                          ? "border-destructive/60 bg-destructive/20"
-                          : "border-primary/40",
-                      )}
-                      style={{ top: `${top}%`, height: `${height}%` }}
-                    >
-                      <div className="flex items-center justify-between gap-2">
-                        <p className="font-semibold leading-tight">
-                          {block.title || block.code}
-                        </p>
-                        {block.classNumber && (
-                          <Badge variant="outline" className="text-[10px] uppercase tracking-wide">
-                            #{block.classNumber}
-                          </Badge>
-                        )}
-                      </div>
-                      <p className="text-xs text-muted-foreground">
-                        {block.startTime} - {block.endTime}
-                      </p>
-                      {block.instructor && (
-                        <p className="mt-1 text-xs text-muted-foreground">{block.instructor}</p>
-                      )}
-                      {block.location && (
-                        <p className="text-xs text-muted-foreground">{block.location}</p>
-                      )}
-                      <div className="mt-2 flex flex-wrap gap-1">
-                        <Badge variant="outline">{block.credits} cr</Badge>
-                        {block.conflict && <Badge variant="destructive">Conflict</Badge>}
-                      </div>
-                      {block.notes && (
-                        <p className="mt-2 text-[11px] text-muted-foreground leading-snug">
-                          {block.notes}
-                        </p>
-                      )}
-                    </div>
+                    <HoverCard key={`${block.id}-${day}`}>
+                      <HoverCardTrigger asChild>
+                        <div
+                          className={cn(
+                            "absolute left-3 right-2 rounded-lg border-2 backdrop-blur-sm px-3 py-2 text-left shadow-md hover:shadow-xl transition-all cursor-pointer",
+                            "min-h-[80px] flex flex-col justify-center",
+                            block.conflict
+                              ? "border-destructive/60 bg-gradient-to-br from-destructive/20 to-destructive/10"
+                              : "border-primary/40 bg-gradient-to-br from-primary/20 to-primary/10",
+                          )}
+                          style={{ top: `${top}%`, height: `${height}%` }}
+                        >
+                          <p className="font-bold text-sm leading-tight line-clamp-2 mb-1">
+                            {block.title || block.code}
+                          </p>
+                          <p className="text-xs text-muted-foreground font-medium">
+                            {block.startTime} - {block.endTime}
+                          </p>
+                          {block.conflict && (
+                            <Badge variant="destructive" className="mt-1 text-[10px]">
+                              Conflict
+                            </Badge>
+                          )}
+                        </div>
+                      </HoverCardTrigger>
+                      <HoverCardContent className="w-80" side="right">
+                        <div className="space-y-2">
+                          <h4 className="font-semibold text-base">{block.title}</h4>
+                          <p className="text-sm text-muted-foreground">
+                            {block.code}
+                            {block.classNumber && ` • #${block.classNumber}`}
+                          </p>
+                          <Separator />
+                          <div className="text-sm space-y-1">
+                            <p>
+                              <strong>Time:</strong> {block.startTime} - {block.endTime}
+                            </p>
+                            {block.instructor && (
+                              <p>
+                                <strong>Instructor:</strong> {block.instructor}
+                              </p>
+                            )}
+                            {block.location && (
+                              <p>
+                                <strong>Location:</strong> {block.location}
+                              </p>
+                            )}
+                            <p>
+                              <strong>Credits:</strong> {block.credits}
+                            </p>
+                          </div>
+                          {block.notes && (
+                            <>
+                              <Separator />
+                              <p className="text-xs text-muted-foreground">{block.notes}</p>
+                            </>
+                          )}
+                        </div>
+                      </HoverCardContent>
+                    </HoverCard>
                   );
                 })}
               </div>
@@ -1185,18 +1213,78 @@ const Scheduler = () => {
     setUserInput("");
   }, [userInput]);
 
-  const handleAcceptSchedule = () => {
-    if (!candidateProposal?.courses.length) return;
+  const handleAcceptSchedule = async () => {
+    if (!candidateProposal?.courses.length || !user) {
+      if (!user) {
+        toast({
+          title: "Sign in required",
+          description: "Please sign in to save your schedule.",
+          variant: "destructive",
+        });
+      }
+      return;
+    }
+    
     const schedule = buildScheduleFromCourses(
       candidateProposal.courses,
       DEFAULT_PREFERENCES,
     );
+    
     setAcceptedSchedule(schedule);
     setAcceptedNotes(candidateProposal.notes ?? "");
-    toast({
-      title: "Schedule added",
-      description: "Your AI generated plan is now visible below.",
-    });
+    
+    try {
+      // Save to database
+      const { data: savedSchedule, error } = await supabase
+        .from('saved_schedules')
+        .insert({
+          user_id: user.id,
+          schedule_name: `Schedule ${new Date().toLocaleDateString()}`,
+          courses: candidateProposal.courses,
+          conflicts: schedule.conflicts,
+          summary: schedule.summary,
+          notes: candidateProposal.notes,
+          is_active: true,
+        })
+        .select()
+        .single();
+
+      if (error) throw error;
+
+      // Insert individual courses
+      const coursesToInsert = candidateProposal.courses.map((course, index) => ({
+        schedule_id: savedSchedule.id,
+        course_code: course.code,
+        course_title: course.title,
+        class_number: course.classNumber,
+        days: course.days,
+        start_time: course.startTime,
+        end_time: course.endTime,
+        location: course.location,
+        instructor: course.instructor,
+        credits: course.credits,
+        notes: course.notes,
+        display_order: index,
+      }));
+
+      const { error: coursesError } = await supabase
+        .from('schedule_courses')
+        .insert(coursesToInsert);
+
+      if (coursesError) throw coursesError;
+
+      toast({
+        title: "Schedule Saved!",
+        description: "Your schedule has been saved and is now visible on your dashboard.",
+      });
+    } catch (error) {
+      console.error('Error saving schedule:', error);
+      toast({
+        title: "Failed to save schedule",
+        description: error instanceof Error ? error.message : "Unknown error",
+        variant: "destructive",
+      });
+    }
   };
 
   const handleKeyDown = (event: React.KeyboardEvent<HTMLTextAreaElement>) => {
@@ -1291,6 +1379,17 @@ const Scheduler = () => {
                 </CardDescription>
               </CardHeader>
               <CardContent className="space-y-6">
+                {isParsingFile && (
+                  <div className="rounded-xl border border-primary/40 bg-primary/5 p-6">
+                    <div className="flex items-center justify-center gap-3">
+                      <Loader2 className="h-6 w-6 animate-spin text-primary" />
+                      <div className="text-left">
+                        <p className="font-semibold text-foreground">Processing your file...</p>
+                        <p className="text-sm text-muted-foreground">Analyzing course catalog with AI</p>
+                      </div>
+                    </div>
+                  </div>
+                )}
                 <div className="rounded-xl border border-dashed border-primary/40 bg-primary/5 p-6">
                   <Label className="text-sm font-medium">Select a file to begin</Label>
                   <Input
@@ -1405,11 +1504,19 @@ const Scheduler = () => {
                 )}
               </CardContent>
               <CardFooter className="flex flex-col gap-3">
+                {acceptedSchedule && (
+                  <div className="w-full rounded-lg border border-primary/20 bg-primary/5 p-3 text-sm text-muted-foreground">
+                    <p className="flex items-center gap-2">
+                      <CheckCircle2 className="h-4 w-4 text-primary" />
+                      Schedule saved! You can continue chatting to request changes.
+                    </p>
+                  </div>
+                )}
                 <Textarea
                   value={userInput}
                   onChange={event => setUserInput(event.target.value)}
                   onKeyDown={handleKeyDown}
-                  placeholder="Tell Kairos which classes you need, your ideal days, breaks, or any constraints."
+                  placeholder={acceptedSchedule ? "Request changes or ask for suggestions..." : "Tell Kairos which classes you need, your ideal days, breaks, or any constraints."}
                   className="min-h-[90px]"
                   disabled={isSending}
                 />
@@ -1460,10 +1567,13 @@ const Scheduler = () => {
                       duration={candidateDuration}
                     />
                   </CardContent>
-                  <CardFooter>
-                    <Button onClick={handleAcceptSchedule}>
-                      <CheckCircle2 className="mr-2 h-4 w-4" /> Accept this plan
+                  <CardFooter className="flex gap-2">
+                    <Button onClick={handleAcceptSchedule} disabled={!user}>
+                      <Save className="mr-2 h-4 w-4" /> {acceptedSchedule ? "Save Changes" : "Save Schedule"}
                     </Button>
+                    {!user && (
+                      <p className="text-xs text-muted-foreground ml-2">Sign in to save</p>
+                    )}
                   </CardFooter>
                 </Card>
               ) : (

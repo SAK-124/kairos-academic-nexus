@@ -1,8 +1,9 @@
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { FileText, Calendar, TrendingUp, Clock, ArrowRight } from "lucide-react";
+import { FileText, Calendar, TrendingUp, Clock, ArrowRight, CalendarDays } from "lucide-react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 
@@ -34,6 +35,7 @@ export default function Dashboard() {
     totalNotes: 0,
     recentNotes: [] as any[],
   });
+  const [savedSchedules, setSavedSchedules] = useState<any[]>([]);
 
   useEffect(() => {
     if (!user) return;
@@ -59,7 +61,20 @@ export default function Dashboard() {
       });
     };
 
+    const fetchSchedules = async () => {
+      const { data, error } = await supabase
+        .from('saved_schedules')
+        .select('id, schedule_name, summary, created_at, is_active')
+        .eq('user_id', user.id)
+        .eq('is_active', true)
+        .order('created_at', { ascending: false })
+        .limit(3);
+
+      if (data) setSavedSchedules(data);
+    };
+
     fetchStats();
+    fetchSchedules();
   }, [user]);
 
   return (
@@ -94,6 +109,72 @@ export default function Dashboard() {
           color="text-purple-500"
         />
       </div>
+
+      {/* Saved Schedules Section */}
+      <section className="mb-8">
+        <div className="flex items-center justify-between mb-4">
+          <h2 className="text-2xl font-semibold text-foreground">Your Schedules</h2>
+          <Button 
+            variant="ghost" 
+            onClick={() => navigate('/scheduler')}
+            className="gap-2"
+          >
+            Create New
+            <ArrowRight className="h-4 w-4" />
+          </Button>
+        </div>
+        <Card className="bg-surface-container">
+          <CardContent className="pt-6">
+            {savedSchedules.length > 0 ? (
+              <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+                {savedSchedules.map((schedule) => (
+                  <Card
+                    key={schedule.id}
+                    className="bg-background/50 hover:shadow-lg transition-shadow cursor-pointer"
+                    onClick={() => navigate('/scheduler')}
+                  >
+                    <CardHeader className="pb-3">
+                      <div className="flex items-start justify-between gap-2">
+                        <div className="flex items-center gap-2">
+                          <CalendarDays className="h-5 w-5 text-primary" />
+                          <CardTitle className="text-base">{schedule.schedule_name}</CardTitle>
+                        </div>
+                      </div>
+                      <CardDescription className="text-xs">
+                        {new Date(schedule.created_at).toLocaleDateString()}
+                      </CardDescription>
+                    </CardHeader>
+                    <CardContent>
+                      <div className="space-y-2">
+                        <div className="flex items-center justify-between text-sm">
+                          <span className="text-muted-foreground">Credits</span>
+                          <Badge variant="outline">{schedule.summary.totalCredits}</Badge>
+                        </div>
+                        <div className="flex items-center justify-between text-sm">
+                          <span className="text-muted-foreground">Meetings/week</span>
+                          <Badge variant="outline">{schedule.summary.totalMeetings}</Badge>
+                        </div>
+                        <div className="flex items-center justify-between text-sm">
+                          <span className="text-muted-foreground">Avg hours/day</span>
+                          <Badge variant="outline">{schedule.summary.averageDailyHours}h</Badge>
+                        </div>
+                      </div>
+                    </CardContent>
+                  </Card>
+                ))}
+              </div>
+            ) : (
+              <div className="text-center py-8">
+                <CalendarDays className="h-12 w-12 mx-auto mb-3 text-muted-foreground" />
+                <p className="text-muted-foreground mb-4">No schedules yet</p>
+                <Button onClick={() => navigate('/scheduler')}>
+                  Create Your First Schedule
+                </Button>
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      </section>
 
       {/* Recent Notes Section */}
       <section className="mb-8">
